@@ -1,0 +1,177 @@
+services:
+  postgres:
+    image: postgres:17.2
+    restart: always
+    environment:
+      POSTGRES_USER: $CMG_DB_USER
+      POSTGRES_PASSWORD: $CMG_DB_PASSWORD
+      POSTGRES_DB: $CMG_DB_NAME
+    env_file:
+    - .env
+    expose:
+    - 5432
+    ports:
+    - 5432:5432
+    networks:
+    - postgres
+    - gateway
+    volumes:
+    - pg-data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    restart: always
+    environment:
+    - MINIO_ROOT_USER=$CMG_OBJECT_STORE_ACCESS_KEY
+    - MINIO_ROOT_PASSWORD=$CMG_OBJECT_STORE_SECRET_KEY
+    env_file:
+      - .env
+    expose:
+    - 9000
+    - 9001
+    ports:
+    - 9000:9000
+    - 9001:9001
+    networks:
+    - gateway
+    volumes:
+    - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  pgadmin:
+    image: dpage/pgadmin4:8.13.0
+    restart: always
+    user: root
+    environment:
+    - PGADMIN_DEFAULT_EMAIL=admin@ucl.ac.uk
+    - PGADMIN_DEFAULT_PASSWORD=admin
+    env_file:
+    - .env
+    ports:
+    - 15433:80
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+    - postgres
+    volumes:
+    - pgadmin-data:/var/lib/pgadmin/
+
+  rabbitmq:
+    image: rabbitmq:4.0.4-management-alpine
+    restart: always
+    environment:
+    - RABBITMQ_DEFAULT_USER=$CMG_QUEUE_USER
+    - RABBITMQ_DEFAULT_PASS=$CMG_QUEUE_PASSWORD
+    expose:
+    - 5672
+    ports:
+    - 5672:5672
+    - 15672:15672
+    networks:
+    - gateway
+    volumes:
+    - rabbitmq-data:/var/lib/rabbitmq/
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'rabbitmq-diagnostics check_port_connectivity'"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  gateway:
+    build:
+      context: .
+      dockerfile: ./cogstack_model_gateway/gateway/Dockerfile
+    restart: always
+    environment:
+    - CMG_DB_USER=$CMG_DB_USER
+    - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
+    - CMG_DB_HOST=postgres
+    - CMG_DB_PORT=5432
+    - CMG_DB_NAME=$CMG_DB_NAME
+    - CMG_OBJECT_STORE_ACCESS_KEY=$CMG_OBJECT_STORE_ACCESS_KEY
+    - CMG_OBJECT_STORE_SECRET_KEY=$CMG_OBJECT_STORE_SECRET_KEY
+    - CMG_OBJECT_STORE_HOST=minio
+    - CMG_OBJECT_STORE_PORT=9000
+    - CMG_QUEUE_USER=$CMG_QUEUE_USER
+    - CMG_QUEUE_PASSWORD=$CMG_QUEUE_PASSWORD
+    - CMG_QUEUE_HOST=rabbitmq
+    - CMG_QUEUE_PORT=5672
+    - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    env_file:
+    - .env
+    ports:
+    - 8888:8000
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+    - gateway
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: ./cogstack_model_gateway/scheduler/Dockerfile
+    restart: always
+    environment:
+    - CMG_DB_USER=$CMG_DB_USER
+    - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
+    - CMG_DB_HOST=postgres
+    - CMG_DB_PORT=5432
+    - CMG_DB_NAME=$CMG_DB_NAME
+    - CMG_OBJECT_STORE_ACCESS_KEY=$CMG_OBJECT_STORE_ACCESS_KEY
+    - CMG_OBJECT_STORE_SECRET_KEY=$CMG_OBJECT_STORE_SECRET_KEY
+    - CMG_OBJECT_STORE_HOST=minio
+    - CMG_OBJECT_STORE_PORT=9000
+    - CMG_QUEUE_USER=$CMG_QUEUE_USER
+    - CMG_QUEUE_PASSWORD=$CMG_QUEUE_PASSWORD
+    - CMG_QUEUE_HOST=rabbitmq
+    - CMG_QUEUE_PORT=5672
+    - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    - MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
+    env_file:
+    - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+    - gateway
+    - cogstack-model-serve_cms
+
+volumes:
+  pg-data:
+    driver: local
+  minio-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+
+networks:
+  postgres:
+    driver: bridge
+  gateway:
+    driver: bridge
+  cogstack-model-serve_cms:
+    external: true
