@@ -1,29 +1,132 @@
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17.2
+    restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: taskdb
+      POSTGRES_USER: $CMG_DB_USER
+      POSTGRES_PASSWORD: $CMG_DB_PASSWORD
+      POSTGRES_DB: $CMG_DB_NAME
+    env_file:
+    - .env
+    expose:
+    - 5432
     ports:
-      - "5432:5432"
+    - 5432:5432
+    networks:
+    - postgres
+    - gateway
+    volumes:
+    - pg-data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  pgadmin:
+    image: dpage/pgadmin4:8.13.0
+    restart: always
+    user: root
+    environment:
+    - PGADMIN_DEFAULT_EMAIL=admin@ucl.ac.uk
+    - PGADMIN_DEFAULT_PASSWORD=admin
+    env_file:
+    - .env
+    ports:
+    - 15433:80
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+    - postgres
+    volumes:
+    - pgadmin-data:/var/lib/pgadmin/
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:4.0.4-management-alpine
+    restart: always
+    environment:
+    - RABBITMQ_DEFAULT_USER=admin
+    - RABBITMQ_DEFAULT_PASS=admin
+    expose:
+    - 5672
     ports:
-      - "5672:5672"
-      - "15672:15672"
+    - 5672:5672
+    - 15672:15672
+    networks:
+    - gateway
+    volumes:
+    - rabbitmq-data:/var/lib/rabbitmq/
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'rabbitmq-diagnostics check_port_connectivity'"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
 
   gateway:
-    build: ./gateway
+    build:
+      context: .
+      dockerfile: ./src/gateway/Dockerfile
+    environment:
+    - CONFIG_FILE=/app/gateway/config.json
+    - CMG_DB_USER=$CMG_DB_USER
+    - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
+    - CMG_DB_HOST=postgres
+    - CMG_DB_PORT=5432
+    - CMG_DB_NAME=$CMG_DB_NAME
+    - CMG_QUEUE_USER=$CMG_QUEUE_USER
+    - CMG_QUEUE_PASSWORD=$CMG_QUEUE_PASSWORD
+    - CMG_QUEUE_HOST=rabbitmq
+    - CMG_QUEUE_PORT=5672
+    - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    env_file:
+    - .env
     ports:
-      - "8000:8000"
+    - 8000:8000
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+    - gateway
 
   scheduler:
-    build: ./scheduler
+    build:
+      context: .
+      dockerfile: ./src/scheduler/Dockerfile
+    environment:
+    - CONFIG_FILE=/app/scheduler/config.json
+    - CMG_DB_USER=$CMG_DB_USER
+    - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
+    - CMG_DB_HOST=postgres
+    - CMG_DB_PORT=5432
+    - CMG_DB_NAME=$CMG_DB_NAME
+    - CMG_QUEUE_USER=$CMG_QUEUE_USER
+    - CMG_QUEUE_PASSWORD=$CMG_QUEUE_PASSWORD
+    - CMG_QUEUE_HOST=rabbitmq
+    - CMG_QUEUE_PORT=5672
+    - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    env_file:
+    - .env
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+    - gateway
+
+volumes:
+  pg-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+
+networks:
+  postgres:
+    driver: bridge
+  gateway:
+    driver: bridge

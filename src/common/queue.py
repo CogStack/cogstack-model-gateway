@@ -6,19 +6,33 @@ from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic, BasicProperties
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"
-QUEUE_NAME = "tasks"
+DEFAULT_RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"
+DEFAULT_QUEUE_NAME = "cmg_tasks"
 
 
 class QueueManager:
-    def __init__(self, queue_name: str = QUEUE_NAME, rabbitmq_url: str = RABBITMQ_URL):
-        self.queue_name = queue_name
-        self.rabbitmq_url = rabbitmq_url
+    def __init__(
+        self,
+        user: str = None,
+        password: str = None,
+        host: str = None,
+        port: int = None,
+        queue_name: str = None,
+        connection_url: str = None,
+    ):
+        if user and password and host and port:
+            self.connection_url = f"amqp://{user}:{password}@{host}:{port}/"
+        elif connection_url:
+            self.connection_url = connection_url
+        else:
+            self.connection_url = DEFAULT_RABBITMQ_URL
+
+        self.queue_name = queue_name if queue_name else DEFAULT_QUEUE_NAME
         self.connection = None
         self.channel = None
 
     def connect(self):
-        self.connection = pika.BlockingConnection(pika.URLParameters(self.rabbitmq_url))
+        self.connection = pika.BlockingConnection(pika.URLParameters(self.connection_url))
         self.channel = self.connection.channel()
 
     def close_connection(self):

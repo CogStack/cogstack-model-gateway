@@ -1,18 +1,21 @@
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV POETRY_HOME=/etc/poetry
+ENV PATH="${POETRY_HOME}/bin:${PATH}"
 
-RUN apt-get update && apt-get install -y python3
+RUN apt-get update && apt-get install -y curl python3
+RUN curl -sSL https://install.python-poetry.org | python3 -
 
 WORKDIR /app
 
-COPY ../../pyproject.toml ../../poetry.lock /app/
+COPY pyproject.toml poetry.lock ./
 RUN poetry install
 
-COPY ../common/ /app/common/
-
-COPY . /app/gateway/
+COPY src/common/ common/
+COPY src/gateway/ gateway/
+COPY config.json gateway/
 
 EXPOSE 8000
 
-CMD ["fastapi", "run", "--workers", "4", "app/gateway/main.py"]
+CMD ["poetry", "run", "fastapi", "run", "--workers", "4", "gateway/main.py"]

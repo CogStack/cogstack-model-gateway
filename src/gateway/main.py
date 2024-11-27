@@ -13,15 +13,27 @@ from gateway.routers import tasks
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    dbm = DatabaseManager(database_url=config.db.url)
+    global config
+    dbm = DatabaseManager(
+        user=config.env.db_user,
+        password=config.env.db_password,
+        host=config.env.db_host,
+        port=config.env.db_port,
+        db_name=config.env.db_name,
+    )
     dbm.init_db()
 
-    qm = QueueManager(queue_name=config.rabbitmq.queue, url=config.rabbitmq.url)
+    qm = QueueManager(
+        user=config.env.queue_user,
+        password=config.env.queue_password,
+        host=config.env.queue_host,
+        port=config.env.queue_port,
+        queue_name=config.env.queue_name,
+    )
     qm.init_queue()
 
     tm = TaskManager(db_manager=dbm)
 
-    global config
     config.set("database_manager", dbm)
     config.set("queue_manager", qm)
     config.set("task_manager", tm)
@@ -46,9 +58,9 @@ async def submit_task(request: Request, config: Annotated[Config, Depends(get_co
 
     tm: TaskManager = config.task_manager
     task_uuid = tm.create_task(Status.PENDING, priority)
-    task = {"task_uuid": task_uuid, **data}
+    task = {"uuid": task_uuid, **data}
 
     qm: QueueManager = config.queue_manager
     qm.publish(task, priority)
 
-    return {"task_uuid": task_uuid, "status": "Task submitted successfully"}
+    return {"uuid": task_uuid, "status": "Task submitted successfully"}

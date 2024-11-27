@@ -4,6 +4,19 @@ import os
 from dotenv import load_dotenv
 
 CONFIG_FILE = os.getenv("CONFIG_FILE", "config.json")
+ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX = "CMG_"
+ACCEPTED_ENVIRONMENT_VARIABLES = {
+    "CMG_DB_USER",
+    "CMG_DB_PASSWORD",
+    "CMG_DB_NAME",
+    "CMG_DB_HOST",
+    "CMG_DB_PORT",
+    "CMG_QUEUE_USER",
+    "CMG_QUEUE_PASSWORD",
+    "CMG_QUEUE_NAME",
+    "CMG_QUEUE_HOST",
+    "CMG_QUEUE_PORT",
+}
 
 
 # FIXME: Add validation
@@ -36,9 +49,11 @@ def load_config() -> Config:
         raise
 
     load_dotenv()
-    for key, value in os.environ.items():
-        if key in config:
-            config[key] = value
+    config["env"] = {
+        var.replace(ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX, "", 1).lower(): value
+        for var in ACCEPTED_ENVIRONMENT_VARIABLES
+        if (value := os.getenv(var))
+    }
 
     return Config(config)
 

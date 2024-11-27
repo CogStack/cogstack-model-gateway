@@ -8,10 +8,22 @@ from scheduler.scheduler import Scheduler
 
 
 def initialize_connections() -> tuple[DatabaseManager, QueueManager, TaskManager]:
-    dbm = DatabaseManager(database_url=config.db.url)
+    dbm = DatabaseManager(
+        user=config.env.db_user,
+        password=config.env.db_password,
+        host=config.env.db_host,
+        port=config.env.db_port,
+        db_name=config.env.db_name,
+    )
     dbm.init_db()
 
-    qm = QueueManager(queue_name=config.rabbitmq.queue, url=config.rabbitmq.url)
+    qm = QueueManager(
+        user=config.env.queue_user,
+        password=config.env.queue_password,
+        host=config.env.queue_host,
+        port=config.env.queue_port,
+        queue_name=config.env.queue_name,
+    )
     qm.init_queue()
 
     tm = TaskManager(db_manager=dbm)

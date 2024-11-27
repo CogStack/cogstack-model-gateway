@@ -23,4 +23,4 @@ async def get_task_by_uuid(
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    return task if detail else {"task_uuid": task.task_uuid, "status": task.status}
+    return task if detail else {"uuid": task.task_uuid, "status": task.status}

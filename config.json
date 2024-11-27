@@ -1,20 +1,4 @@
 {
-    "db": {
-        "host": "localhost",
-        "port": 5432,
-        "database": "tasks",
-        "user": "postgres",
-        "password": "postgres",
-        "url": ""
-    },
-    "rabbitmq": {
-        "host": "localhost",
-        "port": 5672,
-        "queue": "tasks",
-        "user": "guest",
-        "password": "guest",
-        "url": ""
-    },
     "priority": {
         "high": 1,
         "medium": 2,
