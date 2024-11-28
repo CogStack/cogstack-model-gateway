@@ -1,7 +1,10 @@
+import logging
 from contextlib import contextmanager
 
 from sqlalchemy.exc import ProgrammingError
 from sqlmodel import Session, SQLModel, create_engine
+
+log = logging.getLogger("cmg")
 
 DEFAULT_POSTGRES_URL = "postgresql+psycopg2://user:password@postgres/cmg_tasks"
 
@@ -26,12 +29,12 @@ class DatabaseManager:
         self.engine = create_engine(self.connection_url, echo=True)
 
     def init_db(self):
-        # FIXME: Error handling
+        log.info("Initializing database")
         try:
             SQLModel.metadata.create_all(self.engine)
-            print("Database setup complete.")
+            log.info("Database setup completed")
         except ProgrammingError:
-            print("Database already initialized.")
+            log.info("Database already exists")
 
     @contextmanager
     def get_session(self):

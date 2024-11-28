@@ -1,3 +1,4 @@
+import logging
 import sys
 
 from common.config import config
@@ -6,8 +7,12 @@ from common.queue import QueueManager
 from common.tasks import TaskManager
 from scheduler.scheduler import Scheduler
 
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("cmg.scheduler")
+
 
 def initialize_connections() -> tuple[DatabaseManager, QueueManager, TaskManager]:
+    log.info("Initializing database and queue connections")
     dbm = DatabaseManager(
         user=config.env.db_user,
         password=config.env.db_password,

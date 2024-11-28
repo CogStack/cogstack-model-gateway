@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -10,9 +11,14 @@ from common.tasks import Status, TaskManager
 from gateway.core.priority import calculate_task_priority
 from gateway.routers import tasks
 
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("cmg.gateway")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log.info("Initializing database and queue connections")
+
     global config
     dbm = DatabaseManager(
         user=config.env.db_user,

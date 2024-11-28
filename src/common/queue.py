@@ -1,10 +1,13 @@
 import json
+import logging
 from functools import wraps
 
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic, BasicProperties
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+log = logging.getLogger("cmg")
 
 DEFAULT_RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"
 DEFAULT_QUEUE_NAME = "cmg_tasks"
@@ -32,10 +35,12 @@ class QueueManager:
         self.channel = None
 
     def connect(self):
+        log.debug("Connecting to queue '%s'", self.queue_name)
         self.connection = pika.BlockingConnection(pika.URLParameters(self.connection_url))
         self.channel = self.connection.channel()
 
     def close_connection(self):
+        log.debug("Closing connection to queue '%s'", self.queue_name)
         if self.connection:
             self.connection.close()
 
@@ -55,24 +60,26 @@ class QueueManager:
     @with_connection
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(5))
     def init_queue(self):
+        log.info("Initializing queue '%s'", self.queue_name)
         self.channel.queue_declare(
             queue=self.queue_name, durable=True, arguments={"x-max-priority": 10}
         )
-        print(f"Queue '{self.queue_name}' initialized.")
+        log.info("Queue '%s' initialized", self.queue_name)
 
     @with_connection
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(5))
     def publish(self, task: dict, priority: int):
+        log.info("Publishing task %s with priority %s", task["uuid"], priority)
         self.channel.basic_publish(
             exchange="",
             routing_key=self.queue_name,
             body=json.dumps(task),
             properties=pika.BasicProperties(
-                delivery_mode=2,  # Make message persistent
+                delivery_mode=2,
                 priority=priority,
             ),
         )
-        print(f"Task {task['uuid']} published with priority {priority}")
+        log.info("Task '%s' published", task["uuid"])
 
     @with_connection
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(5))
@@ -80,12 +87,19 @@ class QueueManager:
         def callback(
             ch: BlockingChannel, method: Basic.Deliver, properties: BasicProperties, body: bytes
         ):
-            task = json.loads(body)
+            try:
+                task = json.loads(body)
+            except json.JSONDecodeError:
+                log.error("Invalid task received: %s", body)
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
+
+            log.info("Received task '%s'", task["uuid"])
             try:
                 process_fn(task)
                 ch.basic_ack(delivery_tag=method.delivery_tag)
             except Exception as e:
-                print(f"Error processing task {task['uuid']}: {e}")
+                log.error("Error processing task '%s': %s", task["uuid"], e)
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
         self.channel.basic_consume(queue=self.queue_name, on_message_callback=callback)

@@ -1,7 +1,10 @@
 import json
+import logging
 import os
 
 from dotenv import load_dotenv
+
+log = logging.getLogger("cmg")
 
 CONFIG_FILE = os.getenv("CONFIG_FILE", "config.json")
 ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX = "CMG_"
@@ -54,7 +57,7 @@ def load_config() -> Config:
         for var in ACCEPTED_ENVIRONMENT_VARIABLES
         if (value := os.getenv(var))
     }
-
+    log.debug(f"Loaded config: {config}")
     return Config(config)
 
 

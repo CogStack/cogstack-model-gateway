@@ -10,11 +10,13 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
-RUN poetry install
+RUN poetry install --only main --no-root --no-directory
 
-COPY src/common/ common/
-COPY src/gateway/ gateway/
-COPY config.json gateway/
+COPY src/common ./common
+COPY src/gateway ./gateway
+COPY config.json README.md ./
+
+RUN poetry install --only main
 
 EXPOSE 8000
 

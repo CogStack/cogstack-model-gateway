@@ -10,10 +10,12 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
-RUN poetry install
+RUN poetry install --only main --no-root --no-directory
 
-COPY src/common/ common/
-COPY src/scheduler/ scheduler/
-COPY config.json scheduler/
+COPY src/common ./common
+COPY src/scheduler ./scheduler
+COPY config.json README.md ./
+
+RUN poetry install --only main
 
 CMD ["poetry", "run", "python3", "scheduler/main.py"]

@@ -1,3 +1,4 @@
+import logging
 import uuid
 from enum import Enum
 from functools import wraps
@@ -5,6 +6,8 @@ from functools import wraps
 from sqlmodel import Field, Session, SQLModel, select
 
 from common.db import DatabaseManager
+
+log = logging.getLogger("cmg")
 
 
 class Status(str, Enum):
@@ -40,12 +43,14 @@ class TaskManager:
         task = Task(status=status, priority=priority)
         session.add(task)
         session.commit()
+        log.info("Task '%s' created with status '%s'", task.uuid, task.status)
         return task.uuid
 
     @with_db_session
     def get_task(self, session: Session, task_uuid: str) -> Task:
         statement = select(Task).where(Task.uuid == task_uuid)
         result = session.exec(statement).first()
+        log.info("Retrieved task '%s'", task_uuid)
         return result
 
     @with_db_session
@@ -59,6 +64,7 @@ class TaskManager:
         error_message: str = None,
     ) -> None:
         if task := session.get(Task, task_uuid):
+            original_status = task.status
             if status:
                 if expected_status and task.status != expected_status:
                     raise ValueError(
@@ -71,3 +77,9 @@ class TaskManager:
             if error_message:
                 task.error_message = error_message
             session.commit()
+            log.info(
+                "Task '%s' updated (original status '%s', current status '%s')",
+                task_uuid,
+                original_status,
+                task.status,
+            )

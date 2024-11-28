@@ -1,3 +1,4 @@
+import logging
 import time
 
 import requests
@@ -5,6 +6,8 @@ import requests
 from common.db import DatabaseManager
 from common.queue import QueueManager
 from common.tasks import Status, Task, TaskManager
+
+log = logging.getLogger("cmg.scheduler")
 
 
 class Scheduler:
