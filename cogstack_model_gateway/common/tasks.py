@@ -5,7 +5,7 @@ from functools import wraps
 
 from sqlmodel import Field, Session, SQLModel, select
 
-from common.db import DatabaseManager
+from cogstack_model_gateway.common.db import DatabaseManager
 
 log = logging.getLogger("cmg")
 
@@ -43,14 +43,17 @@ class TaskManager:
         task = Task(status=status, priority=priority)
         session.add(task)
         session.commit()
-        log.info("Task '%s' created with status '%s'", task.uuid, task.status)
+        log.info("Task '%s' created with status '%s'", task.uuid, task.status.value)
         return task.uuid
 
     @with_db_session
     def get_task(self, session: Session, task_uuid: str) -> Task:
         statement = select(Task).where(Task.uuid == task_uuid)
         result = session.exec(statement).first()
-        log.info("Retrieved task '%s'", task_uuid)
+        if result:
+            log.info("Retrieved task '%s'", task_uuid)
+        else:
+            log.warning("Task '%s' not found", task_uuid)
         return result
 
     @with_db_session
@@ -59,7 +62,7 @@ class TaskManager:
         session: Session,
         task_uuid: str,
         status: str = None,
-        expected_status: str = None,
+        expected_status: Status = None,
         result: str = None,
         error_message: str = None,
     ) -> None:
@@ -68,8 +71,8 @@ class TaskManager:
             if status:
                 if expected_status and task.status != expected_status:
                     raise ValueError(
-                        f"Status of retrieved task '{task_uuid}' is '{task.status}', expected"
-                        f" '{expected_status}'"
+                        f"Status of retrieved task '{task_uuid}' is '{task.status.value}', expected"
+                        f" '{expected_status.value}'"
                     )
                 task.status = status
             if result:
@@ -80,6 +83,6 @@ class TaskManager:
             log.info(
                 "Task '%s' updated (original status '%s', current status '%s')",
                 task_uuid,
-                original_status,
-                task.status,
+                original_status.value,
+                task.status.value,
             )

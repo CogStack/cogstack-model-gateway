@@ -94,13 +94,16 @@ class QueueManager:
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
-            log.info("Received task '%s'", task["uuid"])
+            log.info("Received task '%s'", task)
             try:
                 process_fn(task)
                 ch.basic_ack(delivery_tag=method.delivery_tag)
             except Exception as e:
-                log.error("Error processing task '%s': %s", task["uuid"], e)
+                log.error("Error processing task '%s': %s", task, e)
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
-        self.channel.basic_consume(queue=self.queue_name, on_message_callback=callback)
-        self.channel.start_consuming()
+        try:
+            self.channel.basic_consume(queue=self.queue_name, on_message_callback=callback)
+            self.channel.start_consuming()
+        except Exception:
+            log.exception("Error consuming tasks from queue '%s'", self.queue_name)

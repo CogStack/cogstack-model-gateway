@@ -2,8 +2,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from common.config import Config, get_config
-from common.tasks import TaskManager
+from cogstack_model_gateway.common.config import Config, get_config
+from cogstack_model_gateway.common.tasks import TaskManager
 
 router = APIRouter()
 
@@ -21,6 +21,6 @@ async def get_task_by_uuid(
     tm: TaskManager = config.task_manager
     task = tm.get_task(task_uuid)
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail=f"Task '{task_uuid}' not found")
 
-    return task if detail else {"uuid": task.task_uuid, "status": task.status}
+    return task if detail else {"uuid": task.uuid, "status": task.status}

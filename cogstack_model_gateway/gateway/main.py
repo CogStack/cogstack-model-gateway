@@ -4,12 +4,12 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
 
-from common.config import Config, config, get_config
-from common.db import DatabaseManager
-from common.queue import QueueManager
-from common.tasks import Status, TaskManager
-from gateway.core.priority import calculate_task_priority
-from gateway.routers import tasks
+from cogstack_model_gateway.common.config import Config, config, get_config
+from cogstack_model_gateway.common.db import DatabaseManager
+from cogstack_model_gateway.common.queue import QueueManager
+from cogstack_model_gateway.common.tasks import Status, TaskManager
+from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
+from cogstack_model_gateway.gateway.routers import tasks
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("cmg.gateway")

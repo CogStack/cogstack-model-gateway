@@ -5,11 +5,6 @@ description = "A Gateway for accessing Cogstack ModelServe instances"
 authors = ["Phoevos Kalemkeris <phoevos.kalemkeris@ucl.ac.uk>"]
 license = "Elastic License 2.0"
 readme = "README.md"
-packages = [
-    { include = "common", from = "src" },
-    { include = "gateway", from = "src" },
-    { include = "scheduler", from = "src" }
-]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -44,7 +39,7 @@ select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
-pythonpath = [".", "src"]
+pythonpath = ["."]
 
 [build-system]
 requires = ["poetry-core"]

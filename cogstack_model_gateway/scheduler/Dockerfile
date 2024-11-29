@@ -12,10 +12,10 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --only main --no-root --no-directory
 
-COPY src/common ./common
-COPY src/scheduler ./scheduler
+COPY cogstack_model_gateway/common ./cogstack_model_gateway/common
+COPY cogstack_model_gateway/scheduler ./cogstack_model_gateway/scheduler
 COPY config.json README.md ./
 
 RUN poetry install --only main
 
-CMD ["poetry", "run", "python3", "scheduler/main.py"]
+CMD ["poetry", "run", "python3", "cogstack_model_gateway/scheduler/main.py"]

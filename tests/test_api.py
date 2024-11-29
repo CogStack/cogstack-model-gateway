@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from src.gateway.main import app
+from cogstack_model_gateway.gateway.main import app
 
 client = TestClient(app)
 

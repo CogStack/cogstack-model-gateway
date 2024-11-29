@@ -1,11 +1,9 @@
 import logging
 import time
 
-import requests
-
-from common.db import DatabaseManager
-from common.queue import QueueManager
-from common.tasks import Status, Task, TaskManager
+from cogstack_model_gateway.common.db import DatabaseManager
+from cogstack_model_gateway.common.queue import QueueManager
+from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
 
 log = logging.getLogger("cmg.scheduler")
 
@@ -20,19 +18,12 @@ class Scheduler:
 
     def process_task(self, task: dict):
         task_uuid = task["uuid"]
-        model_server_url = task["model_server_url"]
+        log.info(f"Processing task '{task_uuid}'")
 
         self.task_manager.update_task(
             task_uuid, status=Status.RUNNING, expected_status=Status.PENDING
         )
-
-        response = requests.post(model_server_url, json=task)
-        if response.status_code != 200:
-            self.task_manager.update_task(
-                task_uuid, status=Status.FAILED, error_message=response.text
-            )
-            return
-
+        self.route_task(task)
         self.poll_task_status(task_uuid)
 
     def poll_task_status(self, task_uuid: str) -> None:
@@ -43,9 +34,13 @@ class Scheduler:
                 return
             time.sleep(5)
 
+    def route_task(self, task: dict) -> None:
+        # FIXME: Route task to a model server
+        log.info(f"Routing task '{task['uuid']}' to model server at {task["model_server_url"]}")
+
     def send_notification(self, task: Task):
         # FIXME: notify user
-        print(f"Task '{task.uuid}' {task.status}: {task.result}")
+        log.info(f"Task '{task.uuid}' {task.status.value}: {task.result}")
 
     def run(self):
         self.queue_manager.consume(self.process_task)

@@ -66,9 +66,8 @@ services:
   gateway:
     build:
       context: .
-      dockerfile: ./src/gateway/Dockerfile
+      dockerfile: ./cogstack_model_gateway/gateway/Dockerfile
     environment:
-    - CONFIG_FILE=/app/gateway/config.json
     - CMG_DB_USER=$CMG_DB_USER
     - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
     - CMG_DB_HOST=postgres
@@ -94,9 +93,8 @@ services:
   scheduler:
     build:
       context: .
-      dockerfile: ./src/scheduler/Dockerfile
+      dockerfile: ./cogstack_model_gateway/scheduler/Dockerfile
     environment:
-    - CONFIG_FILE=/app/scheduler/config.json
     - CMG_DB_USER=$CMG_DB_USER
     - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
     - CMG_DB_HOST=postgres

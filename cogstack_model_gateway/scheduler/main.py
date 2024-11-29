@@ -1,11 +1,11 @@
 import logging
 import sys
 
-from common.config import config
-from common.db import DatabaseManager
-from common.queue import QueueManager
-from common.tasks import TaskManager
-from scheduler.scheduler import Scheduler
+from cogstack_model_gateway.common.config import config
+from cogstack_model_gateway.common.db import DatabaseManager
+from cogstack_model_gateway.common.queue import QueueManager
+from cogstack_model_gateway.common.tasks import TaskManager
+from cogstack_model_gateway.scheduler.scheduler import Scheduler
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("cmg.scheduler")
