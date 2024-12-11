@@ -16,6 +16,10 @@ psycopg2-binary = "^2.9.10"
 python-dotenv = "^1.0.1"
 requests = "^2.32.3"
 fastapi = {extras = ["standard"], version = "^0.115.5"}
+docker = "^7.1.0"
+mlflow = "^2.18.0"
+python-multipart = "^0.0.19"
+minio = "^7.2.12"
 
 [tool.poetry.group.dev]
 optional = true

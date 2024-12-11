@@ -14,6 +14,11 @@ ACCEPTED_ENVIRONMENT_VARIABLES = {
     "CMG_DB_NAME",
     "CMG_DB_HOST",
     "CMG_DB_PORT",
+    "CMG_OBJECT_STORE_HOST",
+    "CMG_OBJECT_STORE_PORT",
+    "CMG_OBJECT_STORE_ACCESS_KEY",
+    "CMG_OBJECT_STORE_SECRET_KEY",
+    "CMG_OBJECT_STORE_BUCKET",
     "CMG_QUEUE_USER",
     "CMG_QUEUE_PASSWORD",
     "CMG_QUEUE_NAME",
@@ -57,7 +62,7 @@ def load_config() -> Config:
         for var in ACCEPTED_ENVIRONMENT_VARIABLES
         if (value := os.getenv(var))
     }
-    log.debug(f"Loaded config: {config}")
+    log.info(f"Loaded config: {config}")
     return Config(config)
 
 

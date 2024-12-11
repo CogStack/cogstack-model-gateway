@@ -99,7 +99,7 @@ class QueueManager:
                 process_fn(task)
                 ch.basic_ack(delivery_tag=method.delivery_tag)
             except Exception as e:
-                log.error("Error processing task '%s': %s", task, e)
+                log.error("Error processing task '%s': %s", task["uuid"], e)
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
         try:
