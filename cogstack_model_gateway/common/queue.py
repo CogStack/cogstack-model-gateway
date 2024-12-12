@@ -1,6 +1,6 @@
 import json
 import logging
-from functools import wraps
+from functools import partial, wraps
 
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
@@ -96,8 +96,9 @@ class QueueManager:
 
             log.info("Received task '%s'", task)
             try:
-                process_fn(task)
-                ch.basic_ack(delivery_tag=method.delivery_tag)
+                ack = partial(ch.basic_ack, delivery_tag=method.delivery_tag)
+                nack = partial(ch.basic_nack, delivery_tag=method.delivery_tag, requeue=True)
+                process_fn(task, ack, nack)
             except Exception as e:
                 log.error("Error processing task '%s': %s", task["uuid"], e)
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)

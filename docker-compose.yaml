@@ -92,6 +92,7 @@ services:
     build:
       context: .
       dockerfile: ./cogstack_model_gateway/gateway/Dockerfile
+    restart: always
     environment:
     - CMG_DB_USER=$CMG_DB_USER
     - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
@@ -127,6 +128,7 @@ services:
     build:
       context: .
       dockerfile: ./cogstack_model_gateway/scheduler/Dockerfile
+    restart: always
     environment:
     - CMG_DB_USER=$CMG_DB_USER
     - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
@@ -153,6 +155,7 @@ services:
         condition: service_healthy
     networks:
     - gateway
+    - cogstack-model-serve_cms
 
 volumes:
   pg-data:
