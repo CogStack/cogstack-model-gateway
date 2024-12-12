@@ -74,7 +74,7 @@ async def submit_task(request: Request, config: Annotated[Config, Depends(get_co
     priority = calculate_task_priority(data, config)
 
     tm: TaskManager = config.task_manager
-    task_uuid = tm.create_task(Status.PENDING, priority)
+    task_uuid = tm.create_task(Status.PENDING)
     task = {"uuid": task_uuid, **data}
 
     qm: QueueManager = config.queue_manager

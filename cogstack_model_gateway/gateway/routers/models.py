@@ -3,12 +3,7 @@ import logging
 from typing import Annotated
 
 import requests
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    Request,
-)
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from cogstack_model_gateway.common.config import Config, get_config
@@ -119,9 +114,7 @@ async def execute_task(
     model_name: str,
     task: str,
     request: Request,
-    # content_type: str = Depends(get_content_type),
     content_type: Annotated[str, Depends(get_content_type)],
-    # query_params: dict[str, str] = Depends(get_query_params),
     query_params: Annotated[dict[str, str], Depends(get_query_params)],
     config: Annotated[Config, Depends(get_config)],
 ):
@@ -142,22 +135,28 @@ async def execute_task(
     references = []
     osm: ObjectStoreManager = config.object_store_manager
 
+    tm: TaskManager = config.task_manager
+    task_uuid = tm.create_task(Status.PENDING)
+
+    # FIXME: Extract task metadata (e.g. type, payload size) for priority calculation
     if content_type in ("text/plain", "application/x-ndjson"):
         payload = await request.body()
         file_extension = "txt" if content_type == "text/plain" else "ndjson"
-        object_key = await osm.upload_object(payload, f"payload.{file_extension}")
+        object_key = await osm.upload_object(payload, f"payload.{file_extension}", prefix=task_uuid)
         references.append({"key": object_key, "content_type": content_type})
 
     elif content_type == "application/json":
         payload = await request.json()
-        object_key = await osm.upload_object(json.dumps(payload).encode(), "payload.json")
+        object_key = await osm.upload_object(
+            json.dumps(payload).encode(), "payload.json", prefix=task_uuid
+        )
         references.append({"key": object_key, "content_type": content_type})
 
     elif content_type == "multipart/form-data":
         form = await request.form()
         for field, value in form.multi_items():
             if isinstance(value, StarletteUploadFile):
-                object_key = osm.upload_object(await value.read(), value.filename)
+                object_key = osm.upload_object(await value.read(), value.filename, prefix=task_uuid)
                 references.append(
                     {
                         "field": field,
@@ -172,10 +171,6 @@ async def execute_task(
                     {"field": field, "value": value, "content_type": f"{content_type}; field"}
                 )
 
-    priority = calculate_task_priority(task, config)
-
-    tm: TaskManager = config.task_manager
-    task_uuid = tm.create_task(Status.PENDING, priority)
     task = {
         "uuid": task_uuid,
         "method": endpoint["method"],
@@ -184,6 +179,7 @@ async def execute_task(
         "params": query_params,
         "refs": references,
     }
+    priority = calculate_task_priority(task, config)
 
     log.info(f"Executing task: {task}")
     qm: QueueManager = config.queue_manager

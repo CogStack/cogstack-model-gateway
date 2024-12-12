@@ -1,6 +1,6 @@
 import io
 import logging
-from uuid import uuid4
+import uuid
 
 from minio import Minio
 
@@ -56,14 +56,16 @@ class ObjectStoreManager:
             log.error("Error creating bucket '%s': %s", bucket_name, e)
             raise
 
-    def upload_object(self, file_data: bytes, filename: str, bucket_name: str = None) -> str:
+    def upload_object(
+        self, file_data: bytes, filename: str, bucket_name: str = None, prefix: str = None
+    ) -> str:
         if bucket_name and bucket_name != self.default_bucket:
             self.create_bucket(bucket_name)
         else:
             bucket_name = self.default_bucket
 
         log.info("Uploading file '%s' to bucket '%s'", filename, bucket_name)
-        object_key = f"{uuid4()}_{filename}"
+        object_key = f"{prefix if prefix else uuid.uuid4()}_{filename}"
         self.client.put_object(
             bucket_name, object_key, data=io.BytesIO(file_data), length=len(file_data)
         )

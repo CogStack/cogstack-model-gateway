@@ -20,7 +20,6 @@ class Status(str, Enum):
 class Task(SQLModel, table=True):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     status: Status = Field(default=Status.PENDING)
-    priority: int
     result: str = Field(default=None, nullable=True)
     error_message: str = Field(default=None, nullable=True)
 
@@ -39,8 +38,8 @@ class TaskManager:
         return wrapper
 
     @with_db_session
-    def create_task(self, session: Session, status: str, priority: int) -> str:
-        task = Task(status=status, priority=priority)
+    def create_task(self, session: Session, status: str) -> str:
+        task = Task(status=status)
         session.add(task)
         session.commit()
         log.info("Task '%s' created with status '%s'", task.uuid, task.status.value)
