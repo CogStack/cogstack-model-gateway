@@ -38,10 +38,33 @@ class Config:
     def __repr__(self):
         return f"{self.__class__.__name__}({self.__dict__})"
 
+    def __bool__(self):
+        return bool(self.__dict__)
+
+    def __contains__(self, key):
+        return key in self.__dict__
+
+    def __len__(self):
+        return len(self.__dict__)
+
+    def __iter__(self):
+        return iter(self.__dict__)
+
+    def __eq__(self, other):
+        if isinstance(other, Config):
+            return self.__dict__ == other.__dict__
+        return False
+
     def set(self, key: str, value):
         if isinstance(value, dict):
             value = Config(value)
         setattr(self, key, value)
+
+    def to_dict(self):
+        return {
+            key: value.to_dict() if isinstance(value, Config) else value
+            for key, value in self.__dict__.items()
+        }
 
 
 def load_config() -> Config:
