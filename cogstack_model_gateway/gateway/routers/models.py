@@ -142,12 +142,12 @@ async def execute_task(
     if content_type in ("text/plain", "application/x-ndjson"):
         payload = await request.body()
         file_extension = "txt" if content_type == "text/plain" else "ndjson"
-        object_key = await osm.upload_object(payload, f"payload.{file_extension}", prefix=task_uuid)
+        object_key = osm.upload_object(payload, f"payload.{file_extension}", prefix=task_uuid)
         references.append({"key": object_key, "content_type": content_type})
 
     elif content_type == "application/json":
         payload = await request.json()
-        object_key = await osm.upload_object(
+        object_key = osm.upload_object(
             json.dumps(payload).encode(), "payload.json", prefix=task_uuid
         )
         references.append({"key": object_key, "content_type": content_type})
