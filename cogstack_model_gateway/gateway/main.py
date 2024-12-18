@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
         port=config.env.object_store_port,
         access_key=config.env.object_store_access_key,
         secret_key=config.env.object_store_secret_key,
-        default_bucket=config.env.object_store_bucket,
+        default_bucket=config.env.object_store_bucket_tasks,
     )
 
     qm = QueueManager(

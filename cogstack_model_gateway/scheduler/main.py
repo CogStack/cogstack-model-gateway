@@ -25,12 +25,20 @@ def initialize_connections() -> (
     )
     dbm.init_db()
 
-    osm = ObjectStoreManager(
+    task_osm = ObjectStoreManager(
         host=config.env.object_store_host,
         port=config.env.object_store_port,
         access_key=config.env.object_store_access_key,
         secret_key=config.env.object_store_secret_key,
-        default_bucket=config.env.object_store_bucket,
+        default_bucket=config.env.object_store_bucket_tasks,
+    )
+
+    results_osm = ObjectStoreManager(
+        host=config.env.object_store_host,
+        port=config.env.object_store_port,
+        access_key=config.env.object_store_access_key,
+        secret_key=config.env.object_store_secret_key,
+        default_bucket=config.env.object_store_bucket_results,
     )
 
     qm = QueueManager(
@@ -44,16 +52,17 @@ def initialize_connections() -> (
 
     tm = TaskManager(db_manager=dbm)
 
-    return dbm, osm, qm, tm
+    return dbm, task_osm, results_osm, qm, tm
 
 
 def main():
-    _, object_store_manager, queue_manager, task_manager = initialize_connections()
+    connections = initialize_connections()
 
     scheduler = Scheduler(
-        object_store_manager=object_store_manager,
-        queue_manager=queue_manager,
-        task_manager=task_manager,
+        task_object_store_manager=connections[1],
+        results_object_store_manager=connections[2],
+        queue_manager=connections[3],
+        task_manager=connections[4],
     )
     scheduler.run()
 

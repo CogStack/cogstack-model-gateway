@@ -144,6 +144,7 @@ services:
     - CMG_QUEUE_HOST=rabbitmq
     - CMG_QUEUE_PORT=5672
     - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    - MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
     env_file:
     - .env
     depends_on:

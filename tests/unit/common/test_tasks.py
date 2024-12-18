@@ -57,16 +57,14 @@ def test_get_nonexistent_task(task_manager: TaskManager) -> None:
 def test_update_task(task_manager: TaskManager) -> None:
     """Test updating a task's status, result, and error message."""
     task_uuid = task_manager.create_task(status=Status.PENDING)
-    task_manager.update_task(task_uuid, status=Status.RUNNING, expected_status=Status.PENDING)
-
-    updated_task = task_manager.get_task(task_uuid)
+    updated_task = task_manager.update_task(
+        task_uuid, status=Status.RUNNING, expected_status=Status.PENDING
+    )
     assert updated_task.status == Status.RUNNING
 
-    task_manager.update_task(
+    final_task = task_manager.update_task(
         task_uuid, status=Status.SUCCEEDED, result="Test result", error_message=None
     )
-
-    final_task = task_manager.get_task(task_uuid)
     assert final_task.status == Status.SUCCEEDED
     assert final_task.result == "Test result"
 
@@ -81,7 +79,8 @@ def test_update_task_with_incorrect_expected_status(task_manager: TaskManager) -
 def test_update_nonexistent_task(task_manager: TaskManager) -> None:
     """Test updating a non-existent task."""
     non_existent_uuid = "00000000-0000-0000-0000-000000000000"
-    task_manager.update_task(non_existent_uuid, status=Status.FAILED)
+    updated_task = task_manager.update_task(non_existent_uuid, status=Status.FAILED)
+    assert updated_task is None
     assert task_manager.get_task(non_existent_uuid) is None
 
 

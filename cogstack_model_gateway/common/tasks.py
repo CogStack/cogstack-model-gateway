@@ -64,7 +64,7 @@ class TaskManager:
         expected_status: Status = None,
         result: str = None,
         error_message: str = None,
-    ) -> None:
+    ) -> Task:
         if task := session.get(Task, task_uuid):
             original_status = task.status
             if status:
@@ -85,3 +85,7 @@ class TaskManager:
                 original_status.value,
                 task.status.value,
             )
+            return task
+        else:
+            log.warning("Task '%s' not found", task_uuid)
+            return None
