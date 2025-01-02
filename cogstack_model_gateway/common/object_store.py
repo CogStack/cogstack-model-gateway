@@ -1,6 +1,7 @@
 import io
 import logging
 import uuid
+from datetime import timedelta
 
 from minio import Minio
 
@@ -77,3 +78,9 @@ class ObjectStoreManager:
         bucket_name = bucket_name if bucket_name else self.default_bucket
         log.info("Fetching object '%s' from bucket '%s'", object_key, bucket_name)
         return self.client.get_object(bucket_name, object_key).read()
+
+    def get_object_url(
+        self, object_key: str, bucket_name: str = None, expires: timedelta = timedelta(days=7)
+    ) -> str:
+        bucket_name = bucket_name if bucket_name else self.default_bucket
+        return self.client.presigned_get_object(bucket_name, object_key, expires=expires)

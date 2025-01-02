@@ -89,7 +89,7 @@ class Scheduler:
             else:
                 log.info(f"Task '{task_uuid}' completed, writing results to object store")
                 object_key = self.results_object_store_manager.upload_object(
-                    io.BytesIO(json.dumps(results["result"].encode())), task_uuid
+                    results["url"].encode(), "results.url", prefix=task_uuid
                 )
                 return self.task_manager.update_task(
                     task_uuid, status=Status.SUCCEEDED, result=object_key
@@ -97,7 +97,7 @@ class Scheduler:
         else:
             log.info(f"Task '{task_uuid}' completed, writing results to object store")
             object_key = self.results_object_store_manager.upload_object(
-                io.BytesIO(response.content), task_uuid
+                response.content, "results.json", prefix=task_uuid
             )
             return self.task_manager.update_task(
                 task_uuid, status=Status.SUCCEEDED, result=object_key
@@ -108,7 +108,7 @@ class Scheduler:
             task = self.tracking_client.get_task(task_uuid)
             if task is None:
                 raise ValueError(f"Task '{task_uuid}' not found in tracking server")
-            res = {"result": task.url, "error": task.get_exceptions()}
+            res = {"url": task.url, "error": task.get_exceptions()}
             if task.is_finished:
                 return {"status": Status.SUCCEEDED, **res}
             elif task.is_failed or task.is_killed:
@@ -129,7 +129,9 @@ class Scheduler:
 
         ref = refs.pop()
         payload = self.task_object_store_manager.get_object(ref["key"])
-        return json.dumps(payload) if ref["content_type"] == "application/json" else str(payload)
+        return (
+            json.dumps(payload) if ref["content_type"] == "application/json" else payload.decode()
+        )
 
     def _get_multipart_data_from_refs(self, refs: list) -> tuple:
         multipart_data, files = {}, []

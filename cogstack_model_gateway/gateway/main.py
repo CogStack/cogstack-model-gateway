@@ -1,15 +1,13 @@
 import logging
 from contextlib import asynccontextmanager
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI
 
-from cogstack_model_gateway.common.config import Config, config, get_config
+from cogstack_model_gateway.common.config import config
 from cogstack_model_gateway.common.db import DatabaseManager
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
-from cogstack_model_gateway.common.tasks import Status, TaskManager
-from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
+from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.gateway.routers import models, tasks
 
 logging.basicConfig(level=logging.INFO)
@@ -30,12 +28,20 @@ async def lifespan(app: FastAPI):
     )
     dbm.init_db()
 
-    osm = ObjectStoreManager(
+    task_osm = ObjectStoreManager(
         host=config.env.object_store_host,
         port=config.env.object_store_port,
         access_key=config.env.object_store_access_key,
         secret_key=config.env.object_store_secret_key,
         default_bucket=config.env.object_store_bucket_tasks,
+    )
+
+    results_osm = ObjectStoreManager(
+        host=config.env.object_store_host,
+        port=config.env.object_store_port,
+        access_key=config.env.object_store_access_key,
+        secret_key=config.env.object_store_secret_key,
+        default_bucket=config.env.object_store_bucket_results,
     )
 
     qm = QueueManager(
@@ -50,7 +56,8 @@ async def lifespan(app: FastAPI):
     tm = TaskManager(db_manager=dbm)
 
     config.set("database_manager", dbm)
-    config.set("object_store_manager", osm)
+    config.set("task_object_store_manager", task_osm)
+    config.set("results_object_store_manager", results_osm)
     config.set("queue_manager", qm)
     config.set("task_manager", tm)
 
@@ -65,19 +72,3 @@ app.include_router(tasks.router)
 @app.get("/")
 async def root():
     return {"message": "Enter the cult... I mean, the API."}
-
-
-@app.post("/")
-async def submit_task(request: Request, config: Annotated[Config, Depends(get_config)]):
-    data = await request.json()
-
-    priority = calculate_task_priority(data, config)
-
-    tm: TaskManager = config.task_manager
-    task_uuid = tm.create_task(Status.PENDING)
-    task = {"uuid": task_uuid, **data}
-
-    qm: QueueManager = config.queue_manager
-    qm.publish(task, priority)
-
-    return {"uuid": task_uuid, "status": "Task submitted successfully"}

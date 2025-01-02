@@ -87,8 +87,9 @@ router = APIRouter()
 async def get_models():
     models = get_running_models()
     for model in models:
-        if model_info := get_model_meta(model["uri"]):
-            model["info"] = model_info
+        if model["uri"]:
+            if model_info := get_model_meta(model["uri"]):
+                model["info"] = model_info
     return models
 
 
@@ -133,7 +134,7 @@ async def execute_task(
         )
 
     references = []
-    osm: ObjectStoreManager = config.object_store_manager
+    osm: ObjectStoreManager = config.task_object_store_manager
 
     tm: TaskManager = config.task_manager
     task_uuid = tm.create_task(Status.PENDING)
