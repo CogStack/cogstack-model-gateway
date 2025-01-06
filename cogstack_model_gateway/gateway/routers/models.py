@@ -3,7 +3,7 @@ import logging
 from typing import Annotated
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from cogstack_model_gateway.common.config import Config, get_config
@@ -44,23 +44,32 @@ SUPPORTED_ENDPOINTS = {
         "method": "POST",
         "url": "/train_supervised",
         "content_type": "multipart/form-data",
+        "extra_params": {"tracking_id"},
     },
     "train_unsupervised": {
         "method": "POST",
         "url": "/train_unsupervised",
         "content_type": "multipart/form-data",
+        "extra_params": {"tracking_id"},
     },
     "train_unsupervised_with_hf_hub_dataset": {
         "method": "POST",
         "url": "/train_unsupervised_with_hf_hub_dataset",
         "content_type": "multipart/form-data",
+        "extra_params": {"tracking_id"},
     },
     "train_metacat": {
         "method": "POST",
         "url": "/train_metacat",
         "content_type": "multipart/form-data",
+        "extra_params": {"tracking_id"},
     },
-    "evaluate": {"method": "POST", "url": "/evaluate", "content_type": "multipart/form-data"},
+    "evaluate": {
+        "method": "POST",
+        "url": "/evaluate",
+        "content_type": "multipart/form-data",
+        "extra_params": {"tracking_id"},
+    },
     "sanity-check": {
         "method": "POST",
         "url": "/sanity-check",
@@ -115,7 +124,8 @@ async def execute_task(
     model_name: str,
     task: str,
     request: Request,
-    content_type: Annotated[str, Depends(get_content_type)],
+    content_type: Annotated[str, Header()],
+    parsed_content_type: Annotated[str, Depends(get_content_type)],
     query_params: Annotated[dict[str, str], Depends(get_query_params)],
     config: Annotated[Config, Depends(get_config)],
 ):
@@ -127,7 +137,7 @@ async def execute_task(
             detail=f"Task '{task}' not found. Supported tasks are: {supported_endpoints_str}",
         )
 
-    if content_type != endpoint["content_type"]:
+    if parsed_content_type != endpoint["content_type"]:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported content type: expected {endpoint['content_type']}",
@@ -140,20 +150,20 @@ async def execute_task(
     task_uuid = tm.create_task(Status.PENDING)
 
     # FIXME: Extract task metadata (e.g. type, payload size) for priority calculation
-    if content_type in ("text/plain", "application/x-ndjson"):
+    if parsed_content_type in ("text/plain", "application/x-ndjson"):
         payload = await request.body()
-        file_extension = "txt" if content_type == "text/plain" else "ndjson"
+        file_extension = "txt" if parsed_content_type == "text/plain" else "ndjson"
         object_key = osm.upload_object(payload, f"payload.{file_extension}", prefix=task_uuid)
         references.append({"key": object_key, "content_type": content_type})
 
-    elif content_type == "application/json":
+    elif parsed_content_type == "application/json":
         payload = await request.json()
         object_key = osm.upload_object(
             json.dumps(payload).encode(), "payload.json", prefix=task_uuid
         )
         references.append({"key": object_key, "content_type": content_type})
 
-    elif content_type == "multipart/form-data":
+    elif parsed_content_type == "multipart/form-data":
         form = await request.form()
         for field, value in form.multi_items():
             if isinstance(value, StarletteUploadFile):
@@ -163,14 +173,17 @@ async def execute_task(
                         "field": field,
                         "key": object_key,
                         "filename": value.filename,
-                        "content_type": f"{content_type}; file",
+                        "content_type": f"{content_type}; part=file",
                     }
                 )
             else:
                 # FIXME: This field might still hold the raw contents of a file
                 references.append(
-                    {"field": field, "value": value, "content_type": f"{content_type}; field"}
+                    {"field": field, "value": value, "content_type": f"{content_type}; part=field"}
                 )
+
+    if "extra_params" in endpoint and "tracking_id" in endpoint["extra_params"]:
+        query_params["tracking_id"] = task_uuid
 
     task = {
         "uuid": task_uuid,

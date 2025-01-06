@@ -1,5 +1,3 @@
-import io
-import json
 import logging
 import time
 
@@ -8,6 +6,7 @@ import requests
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
+from cogstack_model_gateway.common.utils import parse_content_type_header
 from cogstack_model_gateway.scheduler.tracking import TrackingClient
 
 log = logging.getLogger("cmg.scheduler")
@@ -36,7 +35,7 @@ class Scheduler:
         log.info(f"Processing task '{task_uuid}'")
 
         self.task_manager.update_task(
-            task_uuid, status=Status.RUNNING, expected_status=Status.PENDING
+            task_uuid, status=Status.SCHEDULED, expected_status=Status.PENDING
         )
         res = self.route_task(task)
         task_obj = self.handle_server_response(task_uuid, res, ack, nack)
@@ -56,13 +55,18 @@ class Scheduler:
                 data=request["data"],
                 files=request["files"],
             )
-            response.raise_for_status()
+        except Exception as e:
+            log.error(f"Failed to forward task '{task['uuid']}': {e}")
+            return None
+
+        try:
             log.info(f"Response: {response.text}")
+            response.raise_for_status()
             log.info(f"Task '{task['uuid']}' forwarded successfully to {task['url']}")
             return response
-        except Exception as e:
+        except requests.HTTPError:
             # FIXME: Propagate error to user
-            log.error(f"Failed to process task '{task['uuid']}']: {e}")
+            log.error(f"Failed to process task '{task['uuid']}']: {response.json()}")
             return None
 
     def handle_server_response(
@@ -72,7 +76,8 @@ class Scheduler:
             # FIXME: Perhaps set task to a different status?
             # Pending and requeued? Or failed and done with?
             # Should we reprocess failed tasks? How can we tell transient failures?
-            nack()
+            # nack()
+            ack()
             return self.task_manager.update_task(
                 task_uuid, status=Status.FAILED, error_message="Failed to process task"
             )
@@ -80,7 +85,15 @@ class Scheduler:
 
         if response.status_code == 202:
             log.info(f"Task '{task_uuid}' accepted for processing, waiting for results")
-            results = self.poll_task_status(task_uuid)
+            tracking_id = response.json().get("run_id") if response.json() else None
+            self.task_manager.update_task(
+                task_uuid,
+                status=Status.RUNNING,
+                expected_status=Status.SCHEDULED,
+                tracking_id=tracking_id,
+            )
+
+            results = self.poll_task_status(task_uuid, tracking_id)
             if results["status"] == Status.FAILED:
                 log.error(f"Task '{task_uuid}' failed: {results['error']}")
                 self.task_manager.update_task(
@@ -103,9 +116,10 @@ class Scheduler:
                 task_uuid, status=Status.SUCCEEDED, result=object_key
             )
 
-    def poll_task_status(self, task_uuid: str) -> dict:
+    def poll_task_status(self, task_uuid: str, tracking_id: str = None) -> dict:
         while True:
-            task = self.tracking_client.get_task(task_uuid)
+            tracking_id = tracking_id or self.task_manager.get_task(task_uuid).tracking_id
+            task = self.tracking_client.get_task(tracking_id)
             if task is None:
                 raise ValueError(f"Task '{task_uuid}' not found in tracking server")
             res = {"url": task.url, "error": task.get_exceptions()}
@@ -128,29 +142,30 @@ class Scheduler:
             return None
 
         ref = refs.pop()
-        payload = self.task_object_store_manager.get_object(ref["key"])
-        return (
-            json.dumps(payload) if ref["content_type"] == "application/json" else payload.decode()
-        )
+        return self.task_object_store_manager.get_object(ref["key"]).decode()
 
     def _get_multipart_data_from_refs(self, refs: list) -> tuple:
         multipart_data, files = {}, []
         for ref in refs:
-            if "file" in ref["content_type"]:
+            if "part=file" in ref["content_type"]:
                 file_content = self.task_object_store_manager.get_object(ref["key"])
-                files.append((ref["field"], (ref["filename"], io.BytesIO(file_content))))
+                files.append((ref["field"], (ref["filename"], file_content)))
             else:
                 multipart_data[ref["field"]] = ref["value"]
         return multipart_data, files
 
     def _prepare_request(self, task: dict) -> dict:
         payload, files = None, None
-        if task["content_type"] in ("text/plain", "application/x-ndjson", "application/json"):
+        content_type, _ = parse_content_type_header(task["content_type"])
+        if content_type in ("text/plain", "application/x-ndjson", "application/json"):
             payload = self._get_payload_from_refs(task["refs"])
-        elif task["content_type"] == "multipart/form-data":
+        elif content_type == "multipart/form-data":
             payload, files = self._get_multipart_data_from_refs(task["refs"])
         else:
             raise ValueError(f"Unsupported content type: {task['content_type']}")
+
+        # Allow requests to set the content type header with the correct boundary for multipart data
+        headers = {"Content-Type": task["content_type"]} if not files else None
 
         return {
             "method": task["method"],
@@ -158,5 +173,5 @@ class Scheduler:
             "params": task["params"],
             "data": payload,
             "files": files,
-            "headers": {"Content-Type": task["content_type"]},
+            "headers": headers,
         }

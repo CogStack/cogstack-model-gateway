@@ -12,14 +12,17 @@ log = logging.getLogger("cmg")
 
 class Status(str, Enum):
     PENDING = "pending"
+    SCHEDULED = "scheduled"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    REQUEUED = "requeued"
 
 
 class Task(SQLModel, table=True):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     status: Status = Field(default=Status.PENDING)
+    tracking_id: str = Field(default=None, nullable=True)
     result: str = Field(default=None, nullable=True)
     error_message: str = Field(default=None, nullable=True)
 
@@ -62,6 +65,7 @@ class TaskManager:
         task_uuid: str,
         status: str = None,
         expected_status: Status = None,
+        tracking_id: str = None,
         result: str = None,
         error_message: str = None,
     ) -> Task:
@@ -74,6 +78,8 @@ class TaskManager:
                         f" '{expected_status.value}'"
                     )
                 task.status = status
+            if tracking_id:
+                task.tracking_id = tracking_id
             if result:
                 task.result = result
             if error_message:

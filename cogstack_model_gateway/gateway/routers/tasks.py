@@ -31,7 +31,7 @@ async def get_task_by_uuid(
     if not detail:
         return {"uuid": task.uuid, "status": task.status}
 
-    if download_url:
+    if download_url and task.result:
         task.result = osm.get_object_url(task.result)
 
     return task

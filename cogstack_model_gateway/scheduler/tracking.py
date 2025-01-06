@@ -10,7 +10,7 @@ log = logging.getLogger("cmg.scheduler")
 class TrackingTask:
     def __init__(self, run: Run, url: str):
         self._run = run
-        self._status = RunStatus.to_string(self._run.info.status)
+        self._status = RunStatus.from_string(self._run.info.status)
         self._url = url
 
     @property
@@ -75,13 +75,13 @@ class TrackingClient:
         self.tracking_uri = tracking_uri or mlflow.get_tracking_uri()
         self._mlflow_client = MlflowClient(self.tracking_uri)
 
-    def get_task(self, task_uuid: str) -> TrackingTask:
-        """Get a task by its UUID."""
+    def get_task(self, tracking_id: str) -> TrackingTask:
+        """Get a task by its tracking ID."""
         try:
-            run = self._mlflow_client.get_run(task_uuid)
+            run = self._mlflow_client.get_run(tracking_id)
             experiment_id = run.info.experiment_id
-            url = f"{self.tracking_uri}/#/experiments/{experiment_id}/runs/{task_uuid}"
+            url = f"{self.tracking_uri}/#/experiments/{experiment_id}/runs/{tracking_id}"
             return TrackingTask(run, url)
         except MlflowException as e:
-            log.error(f"Failed to get task '{task_uuid}': {e}")
+            log.error(f"Failed to get task with tracking ID '{tracking_id}': {e}")
             return None
