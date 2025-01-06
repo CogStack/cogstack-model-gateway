@@ -26,7 +26,7 @@ class DatabaseManager:
         else:
             self.connection_url = DEFAULT_POSTGRES_URL
 
-        self.engine = create_engine(self.connection_url, echo=True)
+        self.engine = create_engine(self.connection_url)
 
     def init_db(self):
         log.info("Initializing database")
