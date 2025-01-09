@@ -27,7 +27,7 @@ def test_database_manager_init_with_default_url():
 @patch("cogstack_model_gateway.common.db.create_engine")
 def test_database_manager_engine_creation(mock_create_engine: MagicMock):
     _ = DatabaseManager()
-    mock_create_engine.assert_called_once_with(DEFAULT_POSTGRES_URL, echo=True)
+    mock_create_engine.assert_called_once_with(DEFAULT_POSTGRES_URL)
 
 
 @patch("cogstack_model_gateway.common.db.SQLModel.metadata.create_all")
