@@ -47,6 +47,7 @@ def initialize_connections() -> (
         host=config.env.queue_host,
         port=config.env.queue_port,
         queue_name=config.env.queue_name,
+        max_concurrent_tasks=int(config.env.scheduler_max_concurrent_tasks),
     )
     qm.init_queue()
 

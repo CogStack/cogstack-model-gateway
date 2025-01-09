@@ -69,6 +69,7 @@ def test_queue_manager_init_queue(mock_blocking_connection: MagicMock, queue_man
     queue_manager.channel.queue_declare.assert_called_once_with(
         queue=DEFAULT_QUEUE_NAME, durable=True, arguments={"x-max-priority": 10}
     )
+    queue_manager.channel.basic_qos.assert_called_once_with(prefetch_count=1)
 
 
 @patch("pika.BlockingConnection")

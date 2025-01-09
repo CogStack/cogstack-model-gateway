@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 from functools import partial, wraps
 
 import pika
@@ -22,6 +23,7 @@ class QueueManager:
         port: int = None,
         queue_name: str = None,
         connection_url: str = None,
+        max_concurrent_tasks: int = 1,
     ):
         if user and password and host and port:
             self.connection_url = f"amqp://{user}:{password}@{host}:{port}/"
@@ -33,6 +35,8 @@ class QueueManager:
         self.queue_name = queue_name if queue_name else DEFAULT_QUEUE_NAME
         self.connection = None
         self.channel = None
+        self.semaphore = threading.Semaphore(max_concurrent_tasks)
+        self._max_concurrent_tasks = max_concurrent_tasks
 
     def connect(self):
         log.debug("Connecting to queue '%s'", self.queue_name)
@@ -59,11 +63,12 @@ class QueueManager:
 
     @with_connection
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(5))
-    def init_queue(self):
+    def init_queue(self, prefetch_count: int = None):
         log.info("Initializing queue '%s'", self.queue_name)
         self.channel.queue_declare(
             queue=self.queue_name, durable=True, arguments={"x-max-priority": 10}
         )
+        self.channel.basic_qos(prefetch_count=prefetch_count or self._max_concurrent_tasks)
         log.info("Queue '%s' initialized", self.queue_name)
 
     @with_connection
@@ -81,30 +86,67 @@ class QueueManager:
         )
         log.info("Task '%s' published", task["uuid"])
 
+    @staticmethod
+    def _ack_message(ch: BlockingChannel, delivery_tag: int):
+        cb = partial(ch.basic_ack, delivery_tag=delivery_tag)
+        ch.connection.add_callback_threadsafe(cb)
+
+    @staticmethod
+    def _nack_message(ch: BlockingChannel, delivery_tag: int, requeue: bool = True):
+        cb = partial(ch.basic_nack, delivery_tag=delivery_tag, requeue=requeue)
+        ch.connection.add_callback_threadsafe(cb)
+
+    @staticmethod
+    def _on_message(
+        ch: BlockingChannel,
+        method: Basic.Deliver,
+        properties: BasicProperties,
+        body: bytes,
+        process_fn: callable,
+        semaphore: threading.Semaphore,
+        threads: list,
+    ):
+        def _process_threadsafe():
+            ack = partial(QueueManager._ack_message, ch, method.delivery_tag)
+            nack = partial(QueueManager._nack_message, ch, method.delivery_tag)
+
+            with semaphore:
+                try:
+                    task = json.loads(body)
+                except json.JSONDecodeError:
+                    log.error("Invalid task received: %s", body)
+                    nack(requeue=False)
+                    return
+
+                log.info("Received task '%s'", task)
+                try:
+                    process_fn(task, ack, nack)
+                except Exception as e:
+                    log.error("Error processing task '%s': %s", task["uuid"], e)
+                    nack()
+
+        t = threading.Thread(target=_process_threadsafe)
+        t.start()
+        threads.append(t)
+
     @with_connection
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(5))
     def consume(self, process_fn: callable):
-        def callback(
-            ch: BlockingChannel, method: Basic.Deliver, properties: BasicProperties, body: bytes
-        ):
-            try:
-                task = json.loads(body)
-            except json.JSONDecodeError:
-                log.error("Invalid task received: %s", body)
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
-
-            log.info("Received task '%s'", task)
-            try:
-                ack = partial(ch.basic_ack, delivery_tag=method.delivery_tag)
-                nack = partial(ch.basic_nack, delivery_tag=method.delivery_tag, requeue=True)
-                process_fn(task, ack, nack)
-            except Exception as e:
-                log.error("Error processing task '%s': %s", task["uuid"], e)
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-
+        threads = []
         try:
-            self.channel.basic_consume(queue=self.queue_name, on_message_callback=callback)
+            on_message = partial(
+                QueueManager._on_message,
+                process_fn=process_fn,
+                semaphore=self.semaphore,
+                threads=threads,
+            )
+            self.channel.basic_consume(queue=self.queue_name, on_message_callback=on_message)
             self.channel.start_consuming()
         except Exception:
             log.exception("Error consuming tasks from queue '%s'", self.queue_name)
+            raise
+        finally:
+            for t in threads:
+                t.join()
+            self.channel.stop_consuming()
+            log.info("Stopped consuming tasks from queue '%s'", self.queue_name)
