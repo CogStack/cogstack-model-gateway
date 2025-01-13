@@ -63,7 +63,7 @@ def test_config_set():
     assert config.nested.inner_key == "inner_value"
 
 
-@patch("cogstack_model_gateway.common.config.config", new=Config({"key": "value"}))
+@patch("cogstack_model_gateway.common.config._config_instance", new=Config({"key": "value"}))
 def test_get_config():
     config = get_config()
     assert isinstance(config, Config)
@@ -73,6 +73,7 @@ def test_get_config():
 @patch("builtins.open", new_callable=mock_open, read_data='{"key": "value"}')
 @patch("os.getenv", side_effect=lambda k, d=None: TEST_ENV_VARS.get(k, d))
 @patch("cogstack_model_gateway.common.config.load_dotenv")
+@patch("cogstack_model_gateway.common.config._config_instance", new=None)
 def test_load_config(mock_load_dotenv, mock_getenv, mock_open):
     config = load_config()
     assert isinstance(config, Config)
@@ -87,6 +88,7 @@ def test_load_config(mock_load_dotenv, mock_getenv, mock_open):
 @patch("builtins.open", new_callable=mock_open, read_data='{"key": "value"}')
 @patch("os.getenv", side_effect=lambda k, d=None: None)
 @patch("cogstack_model_gateway.common.config.load_dotenv")
+@patch("cogstack_model_gateway.common.config._config_instance", new=None)
 def test_load_config_no_env_vars(mock_load_dotenv, mock_getenv, mock_open):
     config = load_config()
     assert isinstance(config, Config)

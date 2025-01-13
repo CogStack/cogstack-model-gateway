@@ -69,30 +69,35 @@ class Config:
         }
 
 
+_config_instance: Config = None
+
+
 def load_config() -> Config:
     """Load configuration from the provided JSON file and environment variables."""
-    try:
-        with open(CONFIG_FILE) as f:
-            config = json.load(f)
-    except FileNotFoundError:
-        print(f"Config file {CONFIG_FILE} not found.")
-        raise
-    except json.JSONDecodeError:
-        print(f"Config file {CONFIG_FILE} is not a valid JSON file.")
-        raise
+    global _config_instance
+    if _config_instance is None:
+        try:
+            with open(CONFIG_FILE) as f:
+                config = json.load(f)
+        except FileNotFoundError:
+            log.error(f"Config file {CONFIG_FILE} not found.")
+            raise
+        except json.JSONDecodeError:
+            log.error(f"Config file {CONFIG_FILE} is not a valid JSON file.")
+            raise
 
-    load_dotenv()
-    config["env"] = {
-        var.replace(ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX, "", 1).lower(): value
-        for var in ACCEPTED_ENVIRONMENT_VARIABLES
-        if (value := os.getenv(var))
-    }
-    log.info(f"Loaded config: {config}")
-    return Config(config)
-
-
-config = load_config()
+        load_dotenv()
+        config["env"] = {
+            var.replace(ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX, "", 1).lower(): value
+            for var in ACCEPTED_ENVIRONMENT_VARIABLES
+            if (value := os.getenv(var))
+        }
+        log.info(f"Loaded config: {config}")
+        _config_instance = Config(config)
+    return _config_instance
 
 
 def get_config() -> Config:
-    return config
+    if _config_instance is None:
+        raise RuntimeError("Config not initialized. Call load_config() first.")
+    return _config_instance
