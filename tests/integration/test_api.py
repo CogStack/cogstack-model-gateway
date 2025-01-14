@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 from testcontainers.minio import MinioContainer
@@ -7,47 +5,44 @@ from testcontainers.postgres import PostgresContainer
 from testcontainers.rabbitmq import RabbitMqContainer
 
 from cogstack_model_gateway.gateway.main import app
+from tests.integration.utils import (
+    clone_cogstack_model_serve,
+    configure_environment,
+    remove_cogstack_model_serve,
+    remove_testcontainers,
+    start_cogstack_model_serve,
+    start_scheduler,
+    start_testcontainers,
+    stop_cogstack_model_serve,
+    stop_scheduler,
+)
+
+POSTGRES_IMAGE = "postgres:17.2"
+RABBITMQ_IMAGE = "rabbitmq:4.0.4-management-alpine"
+MINIO_IMAGE = "minio/minio:RELEASE.2024-11-07T00-52-20Z"
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(request):
-    print("Setting up test containers")
-    postgres = PostgresContainer("postgres:17.2")
-    rabbitmq = RabbitMqContainer("rabbitmq:4.0.4-management-alpine")
-    minio = MinioContainer("minio/minio:RELEASE.2024-11-07T00-52-20Z")
+    postgres = PostgresContainer(POSTGRES_IMAGE)
+    rabbitmq = RabbitMqContainer(RABBITMQ_IMAGE)
+    minio = MinioContainer(MINIO_IMAGE)
 
-    def remove_containers():
-        for testcontainer in [postgres, rabbitmq, minio]:
-            testcontainer.stop()
+    containers = [postgres, rabbitmq, minio]
+    request.addfinalizer(lambda: remove_testcontainers(containers))
 
-    request.addfinalizer(remove_containers)
+    start_testcontainers(containers)
 
-    for testcontainer in [postgres, rabbitmq, minio]:
-        testcontainer.start()
+    configure_environment(postgres, rabbitmq, minio)
 
-    queue_connection_params = rabbitmq.get_connection_params()
-    minio_host, minio_port = minio.get_config()["endpoint"].split(":")
-    env = {
-        "CMG_DB_USER": postgres.username,
-        "CMG_DB_PASSWORD": postgres.password,
-        "CMG_DB_HOST": postgres.get_container_host_ip(),
-        "CMG_DB_PORT": postgres.get_exposed_port(postgres.port),
-        "CMG_DB_NAME": "test",
-        "CMG_QUEUE_USER": rabbitmq.username,
-        "CMG_QUEUE_PASSWORD": rabbitmq.password,
-        "CMG_QUEUE_HOST": queue_connection_params.host,
-        "CMG_QUEUE_PORT": str(queue_connection_params.port),
-        "CMG_QUEUE_NAME": "test",
-        "CMG_OBJECT_STORE_HOST": minio_host,
-        "CMG_OBJECT_STORE_PORT": minio_port,
-        "CMG_OBJECT_STORE_ACCESS_KEY": minio.access_key,
-        "CMG_OBJECT_STORE_SECRET_KEY": minio.secret_key,
-        "CMG_OBJECT_STORE_BUCKET_TASKS": "test-tasks",
-        "CMG_OBJECT_STORE_BUCKET_RESULTS": "test-results",
-        "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
-    }
+    scheduler_process = start_scheduler()
+    request.addfinalizer(lambda: stop_scheduler(scheduler_process))
 
-    os.environ.update(env)
+    clone_cogstack_model_serve()
+    request.addfinalizer(remove_cogstack_model_serve)
+
+    cms_compose_envs = start_cogstack_model_serve()
+    request.addfinalizer(lambda: stop_cogstack_model_serve(cms_compose_envs))
 
 
 @pytest.fixture(scope="module")
