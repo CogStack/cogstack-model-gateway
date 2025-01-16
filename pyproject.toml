@@ -46,6 +46,7 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 pythonpath = ["."]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["poetry-core"]

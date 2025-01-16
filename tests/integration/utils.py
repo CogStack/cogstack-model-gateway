@@ -1,41 +1,107 @@
+import logging
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
+import pytest
+from docker.models.containers import Container
+from dotenv import load_dotenv
 from git import Repo
 from testcontainers.compose import DockerCompose
-from testcontainers.core.container import DockerContainer
+from testcontainers.core.container import DockerClient, DockerContainer
 from testcontainers.minio import MinioContainer
 from testcontainers.postgres import PostgresContainer
 from testcontainers.rabbitmq import RabbitMqContainer
 
+POSTGRES_IMAGE = "postgres:17.2"
+RABBITMQ_IMAGE = "rabbitmq:4.0.4-management-alpine"
+MINIO_IMAGE = "minio/minio:RELEASE.2024-11-07T00-52-20Z"
+
 SCHEDULER_SCRIPT_PATH = "cogstack_model_gateway/scheduler/main.py"
 
+TEST_ASSETS = Path("tests/integration/assets")
+TEST_CMS_ENV_FILE = TEST_ASSETS / "cms.env"
+
 COGSTACK_MODEL_SERVE_REPO = "https://github.com/CogStack/CogStack-ModelServe.git"
-COGSTACK_MODEL_SERVE_COMMIT = "ac0a8c15e0596846c0d193cc71fd5347a2fc9631"
+COGSTACK_MODEL_SERVE_COMMIT = "a55be7b10a83e3bdbdbd1a9e13248e1557fdb0db"
 COGSTACK_MODEL_SERVE_LOCAL_PATH = Path("downloads/CogStack-ModelServe")
 COGSTACK_MODEL_SERVE_COMPOSE = "docker-compose.yml"
 COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW = "docker-compose-mlflow.yml"
+COGSTACK_MODEL_SERVE_NETWORK = "cogstack-model-serve_cms"
+
+TEST_MODEL_SERVICE = "medcat-umls"
+
+log = logging.getLogger("cmg.tests.integration")
+
+
+def setup_testcontainers(request: pytest.FixtureRequest):
+    postgres = PostgresContainer(POSTGRES_IMAGE)
+    rabbitmq = RabbitMqContainer(RABBITMQ_IMAGE)
+    minio = MinioContainer(MINIO_IMAGE)
+
+    containers = [postgres, rabbitmq, minio]
+    request.addfinalizer(lambda: remove_testcontainers(containers))
+
+    start_testcontainers(containers)
+
+    return postgres, rabbitmq, minio
+
+
+def setup_scheduler(request: pytest.FixtureRequest):
+    scheduler_process = None
+    try:
+        scheduler_process = start_scheduler()
+    except Exception as e:
+        pytest.fail(f"Failed to start scheduler: {e}")
+    finally:
+        request.addfinalizer(
+            lambda: stop_scheduler(scheduler_process) if scheduler_process else None
+        )
+
+
+def setup_cms(request: pytest.FixtureRequest, cleanup_cms: bool) -> dict[str, dict]:
+    try:
+        clone_cogstack_model_serve()
+    except Exception as e:
+        pytest.fail(f"Failed to clone CogStack Model Serve: {e}")
+
+    try:
+        compose_envs = start_cogstack_model_serve([TEST_MODEL_SERVICE])
+    except Exception as e:
+        pytest.fail(f"Failed to start CogStack Model Serve: {e}")
+
+    if cleanup_cms:
+        request.addfinalizer(lambda: stop_cogstack_model_serve(compose_envs))
+    else:
+        request.addfinalizer(
+            lambda: log.warning("Skipping cleanup of CogStack Model Serve resources")
+        )
+
+    return get_service_address_mapping(compose_envs)
 
 
 def start_testcontainers(containers: list[DockerContainer]):
-    print("Starting test containers")
+    log.info("Starting test containers...")
     for testcontainer in containers:
+        log.debug(f"Starting testcontainer with image '{testcontainer.image}'...")
         testcontainer.start()
 
 
 def remove_testcontainers(containers: list[DockerContainer]):
-    print("Removing test containers")
+    log.info("Removing test containers...")
     for testcontainer in containers:
+        log.debug(f"Removing testcontainer with image '{testcontainer.image}'...")
         testcontainer.stop()
 
 
 def configure_environment(
-    postgres: PostgresContainer, rabbitmq: RabbitMqContainer, minio: MinioContainer
+    postgres: PostgresContainer,
+    rabbitmq: RabbitMqContainer,
+    minio: MinioContainer,
+    extras: dict = None,
 ):
-    print("Setting environment variables")
+    log.info("Setting environment variables...")
     queue_connection_params = rabbitmq.get_connection_params()
     minio_host, minio_port = minio.get_config()["endpoint"].split(":")
     env = {
@@ -56,56 +122,72 @@ def configure_environment(
         "CMG_OBJECT_STORE_BUCKET_TASKS": "test-tasks",
         "CMG_OBJECT_STORE_BUCKET_RESULTS": "test-results",
         "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
-        "MLFLOW_TRACKING_URI": "http://mlflow-ui:5000",
+        **(extras or {}),
     }
-
+    log.debug(env)
     os.environ.update(env)
 
 
 def start_scheduler():
-    print("Starting scheduler")
+    log.info("Starting scheduler...")
     return subprocess.Popen(
         ["poetry", "run", "python3", SCHEDULER_SCRIPT_PATH],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
         start_new_session=True,
+        env=dict(os.environ),
+        stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
     )
 
 
 def stop_scheduler(scheduler_process: subprocess.Popen):
-    print("Stopping scheduler")
+    log.info("Stopping scheduler...")
     scheduler_process.kill()
 
 
 def clone_cogstack_model_serve():
-    print("Cloning CogStack Model Serve")
-    if not os.path.exists(COGSTACK_MODEL_SERVE_LOCAL_PATH):
-        repo = Repo.clone_from(COGSTACK_MODEL_SERVE_REPO, COGSTACK_MODEL_SERVE_LOCAL_PATH)
-    else:
-        repo = Repo(COGSTACK_MODEL_SERVE_LOCAL_PATH)
-        repo.remotes.origin.fetch()
+    log.info("Cloning CogStack Model Serve...")
+    try:
+        if not os.path.exists(COGSTACK_MODEL_SERVE_LOCAL_PATH):
+            log.debug("Repository does not exist locally, cloning...")
+            repo = Repo.clone_from(COGSTACK_MODEL_SERVE_REPO, COGSTACK_MODEL_SERVE_LOCAL_PATH)
+        elif not os.path.exists(COGSTACK_MODEL_SERVE_LOCAL_PATH / ".git"):
+            log.debug("Dir exists locally but is not a git repository, removing and cloning...")
+            remove_cogstack_model_serve()
+            repo = Repo.clone_from(COGSTACK_MODEL_SERVE_REPO, COGSTACK_MODEL_SERVE_LOCAL_PATH)
+        else:
+            log.debug("Repository exists locally, fetching the latest changes...")
+            repo = Repo(COGSTACK_MODEL_SERVE_LOCAL_PATH)
+            repo.remotes.origin.fetch()
 
-    repo.git.checkout(COGSTACK_MODEL_SERVE_COMMIT)
+        repo.git.checkout(COGSTACK_MODEL_SERVE_COMMIT)
+    except Exception:
+        remove_cogstack_model_serve(ignore_errors=True)
+        raise
 
 
-def remove_cogstack_model_serve():
-    print("Removing CogStack Model Serve")
-    shutil.rmtree(COGSTACK_MODEL_SERVE_LOCAL_PATH)
+def remove_cogstack_model_serve(ignore_errors: bool = False):
+    log.info("Removing CogStack Model Serve...")
+    shutil.rmtree(COGSTACK_MODEL_SERVE_LOCAL_PATH, ignore_errors=ignore_errors)
 
 
-def start_cogstack_model_serve() -> list[DockerCompose]:
-    print("Deploying CogStack Model Serve")
+def start_cogstack_model_serve(model_services: list[str]) -> list[DockerCompose]:
+    log.info("Deploying CogStack Model Serve (this might take a few minutes)...")
+    load_dotenv()
+    model_package = os.getenv("MODEL_PACKAGE_FULL_PATH")
+    if not model_package:
+        raise ValueError("MODEL_PACKAGE_FULL_PATH environment variable is not set")
+
+    with open(TEST_CMS_ENV_FILE) as f:
+        const_envvars = f.read()
+
     env_file_path = COGSTACK_MODEL_SERVE_LOCAL_PATH / ".env"
     with open(env_file_path, "w") as env_file:
-        env_file.write(
-            "MODEL_PACKAGE_FULL_PATH=/home/phoevos/cogstack/models/medmen_wstatus_2021_oct.zip\n"
-        )
+        env_file.write(const_envvars)
         env_file.write(f"CMS_UID={os.getuid()}\n")
         env_file.write(f"CMS_GID={os.getgid()}\n")
-        env_file.write("MLFLOW_DB_USERNAME=admin\n")
-        env_file.write("MLFLOW_DB_PASSWORD=admin\n")
-        env_file.write("AWS_ACCESS_KEY_ID=admin\n")
-        env_file.write("AWS_SECRET_ACCESS_KEY=admin123\n")
+        env_file.write(f"MODEL_PACKAGE_FULL_PATH={model_package}\n")
+
+    log.debug(f"CogStack Model Serve environment file: {env_file_path}")
 
     compose: DockerCompose = None
     compose_mlflow: DockerCompose = None
@@ -115,7 +197,7 @@ def start_cogstack_model_serve() -> list[DockerCompose]:
             context=COGSTACK_MODEL_SERVE_LOCAL_PATH,
             compose_file_name=COGSTACK_MODEL_SERVE_COMPOSE,
             env_file=".env",
-            services=["medcat-umls"],
+            services=model_services,
         )
         compose.start()
 
@@ -123,17 +205,42 @@ def start_cogstack_model_serve() -> list[DockerCompose]:
             context=COGSTACK_MODEL_SERVE_LOCAL_PATH,
             compose_file_name=COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW,
             env_file=".env",
+            services=["mlflow-ui", "mlflow-db", "minio", "model-bucket-init"],
         )
         compose_mlflow.start()
-
         return [compose, compose_mlflow]
     except subprocess.CalledProcessError as e:
-        print(e.stderr)
+        log.info(e.stderr)
         stop_cogstack_model_serve([env for env in (compose, compose_mlflow) if env])
         raise
 
 
+def _get_container_address(
+    container: Container, network: str = COGSTACK_MODEL_SERVE_NETWORK
+) -> str:
+    return container["NetworkSettings"]["Networks"][network]["IPAddress"]
+
+
+def _get_container_ports(container: Container) -> set[int]:
+    return {p["PrivatePort"] for p in container["Ports"]}
+
+
+def get_service_address_mapping(compose_envs: list[DockerCompose]) -> dict[str, dict]:
+    docker_client = DockerClient()
+    return {
+        c.Service: {
+            "address": _get_container_address(container),
+            "port": _get_container_ports(container).pop(),
+        }
+        for compose_env in compose_envs
+        for c in compose_env.get_containers()
+        if (container := docker_client.get_container(c.ID))
+    }
+
+
 def stop_cogstack_model_serve(compose_envs: list[DockerCompose]):
-    print("Stopping CogStack Model Serve")
+    log.info("Stopping CogStack Model Serve")
     for compose_env in compose_envs:
+        log.debug(f"Stopping {compose_env}...")
         compose_env.stop()
+    remove_cogstack_model_serve()
