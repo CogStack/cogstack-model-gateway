@@ -150,3 +150,11 @@ class QueueManager:
                 t.join()
             self.channel.stop_consuming()
             log.info("Stopped consuming tasks from queue '%s'", self.queue_name)
+
+    @with_connection
+    def is_queue_empty(self):
+        try:
+            queue = self.channel.queue_declare(queue=self.queue_name, passive=True)
+            return queue.method.message_count == 0
+        except pika.exceptions.ChannelClosed:
+            return True
