@@ -134,7 +134,7 @@ def test_unsupported_task(client: TestClient, test_model_service_ip: str):
 def test_process(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
         f"/models/{test_model_service_ip}/process",
-        data="Spinal stenosis",
+        data="Kidney failure",
         headers={"Content-Type": "text/plain"},
     )
     assert response.status_code == 200
@@ -153,7 +153,7 @@ def test_process(client: TestClient, config: Config, test_model_service_ip: str)
     task_payload_key = f"{task_uuid}_payload.txt"
     tom: ObjectStoreManager = config.task_object_store_manager
     payload = tom.get_object(task_payload_key)
-    assert payload == b"Spinal stenosis"
+    assert payload == b"Kidney failure"
 
     # Verify that the queue is empty after the task is processed
     qm: QueueManager = config.queue_manager
@@ -171,7 +171,7 @@ def test_process(client: TestClient, config: Config, test_model_service_ip: str)
     except json.JSONDecodeError as e:
         pytest.fail(f"Failed to parse the result as JSON: {result}, {e}")
 
-    assert result_json["text"] == "Spinal stenosis"
+    assert result_json["text"] == "Kidney failure"
     assert len(result_json["annotations"]) == 1
 
     annotation = result_json["annotations"][0]
@@ -188,7 +188,7 @@ def test_process(client: TestClient, config: Config, test_model_service_ip: str)
             "athena_ids",
         ]
     )
-    assert annotation["label_name"] == "Spinal Stenosis"
+    assert annotation["label_name"] == "Loss Of Kidney Function"
 
     # Verify that the above match the information exposed through the user-facing API
     get_response = client.get(f"/tasks/{task_uuid}", params={"detail": True, "download_url": True})

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from docker.models.containers import Container
-from dotenv import load_dotenv
 from git import Repo
 from testcontainers.compose import DockerCompose
 from testcontainers.core.container import DockerClient, DockerContainer
@@ -22,6 +21,7 @@ SCHEDULER_SCRIPT_PATH = "cogstack_model_gateway/scheduler/main.py"
 
 TEST_ASSETS = Path("tests/integration/assets")
 TEST_CMS_ENV_FILE = TEST_ASSETS / "cms.env"
+TEST_CMS_MODEL_PACK = TEST_ASSETS / "simple_model4test-3.9-1.12.0_edeb88f7986cb05c.zip"
 
 COGSTACK_MODEL_SERVE_REPO = "https://github.com/CogStack/CogStack-ModelServe.git"
 COGSTACK_MODEL_SERVE_COMMIT = "a55be7b10a83e3bdbdbd1a9e13248e1557fdb0db"
@@ -172,11 +172,6 @@ def remove_cogstack_model_serve(ignore_errors: bool = False):
 
 def start_cogstack_model_serve(model_services: list[str]) -> list[DockerCompose]:
     log.info("Deploying CogStack Model Serve (this might take a few minutes)...")
-    load_dotenv()
-    model_package = os.getenv("MODEL_PACKAGE_FULL_PATH")
-    if not model_package:
-        raise ValueError("MODEL_PACKAGE_FULL_PATH environment variable is not set")
-
     with open(TEST_CMS_ENV_FILE) as f:
         const_envvars = f.read()
 
@@ -185,7 +180,7 @@ def start_cogstack_model_serve(model_services: list[str]) -> list[DockerCompose]
         env_file.write(const_envvars)
         env_file.write(f"CMS_UID={os.getuid()}\n")
         env_file.write(f"CMS_GID={os.getgid()}\n")
-        env_file.write(f"MODEL_PACKAGE_FULL_PATH={model_package}\n")
+        env_file.write(f"MODEL_PACKAGE_FULL_PATH={TEST_CMS_MODEL_PACK.absolute()}\n")
 
     log.debug(f"CogStack Model Serve environment file: {env_file_path}")
 
