@@ -1,20 +1,25 @@
-import json
-
 import pytest
-import requests
 from fastapi.testclient import TestClient
 
 from cogstack_model_gateway.common.config import Config, load_config
-from cogstack_model_gateway.common.object_store import ObjectStoreManager
-from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, TaskManager
 from cogstack_model_gateway.gateway.main import app
 from tests.integration.utils import (
+    ANNOTATION_FIELDS_JSON,
+    ANNOTATION_FIELDS_JSONL,
     TEST_MODEL_SERVICE,
     configure_environment,
+    download_result_object,
     setup_cms,
     setup_scheduler,
     setup_testcontainers,
+    validate_api_response,
+    verify_annotation_contains_keys,
+    verify_queue_is_empty,
+    verify_results_match_api_info,
+    verify_task_payload_in_object_store,
+    verify_task_submitted_successfully,
+    wait_for_task_completion,
 )
 
 
@@ -133,73 +138,107 @@ def test_unsupported_task(client: TestClient, test_model_service_ip: str):
 def test_process(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
         f"/models/{test_model_service_ip}/process",
-        data="Kidney failure",
+        data="Patient diagnosed with kidney failure",
         headers={"Content-Type": "text/plain"},
     )
-    assert response.status_code == 200
-    response_json = response.json()
-    assert all(key in response_json for key in ["uuid", "status"])
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
 
-    task_uuid = response_json["uuid"]
     tm: TaskManager = config.task_manager
-    assert tm.get_task(task_uuid), "Failed to submit task: not found in the database"
+    verify_task_submitted_successfully(response_json, tm)
 
-    # Wait for the task to complete
-    while (task := tm.get_task(task_uuid)).status != Status.SUCCEEDED:
-        pass
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
 
-    # Verify that the task payload was stored in the object store
-    task_payload_key = f"{task_uuid}_payload.txt"
-    tom: ObjectStoreManager = config.task_object_store_manager
-    payload = tom.get_object(task_payload_key)
-    assert payload == b"Kidney failure"
+    key = f"{task.uuid}_payload.txt"
+    expected_payload = b"Patient diagnosed with kidney failure"
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
 
-    # Verify that the queue is empty after the task is processed
-    qm: QueueManager = config.queue_manager
-    assert qm.is_queue_empty()
+    verify_queue_is_empty(config.queue_manager)
 
-    # Verify task results
-    assert task.error_message is None, f"Task failed unexpectedly: {task.error_message}"
-    assert task.result is not None, "Task results are missing"
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
 
-    rom: ObjectStoreManager = config.results_object_store_manager
-    result = rom.get_object(task.result)
+    assert "text" in parsed
+    assert parsed["text"] == "Patient diagnosed with kidney failure"
+    assert "annotations" in parsed
+    assert len(parsed["annotations"]) == 1
 
-    try:
-        result_json = json.loads(result.decode("utf-8"))
-    except json.JSONDecodeError as e:
-        pytest.fail(f"Failed to parse the result as JSON: {result}, {e}")
-
-    assert result_json["text"] == "Kidney failure"
-    assert len(result_json["annotations"]) == 1
-
-    annotation = result_json["annotations"][0]
-    assert all(
-        key in annotation
-        for key in [
-            "start",
-            "end",
-            "label_name",
-            "label_id",
-            "categories",
-            "accuracy",
-            "meta_anns",
-            "athena_ids",
-        ]
-    )
+    annotation = parsed["annotations"][0]
+    verify_annotation_contains_keys(annotation, ANNOTATION_FIELDS_JSON)
     assert annotation["label_name"] == "Loss Of Kidney Function"
 
-    # Verify that the above match the information exposed through the user-facing API
-    get_response = client.get(f"/tasks/{task_uuid}", params={"detail": True, "download_url": True})
-    assert get_response.status_code == 200
+    verify_results_match_api_info(client, task, res)
 
-    get_response_json = get_response.json()
-    assert get_response_json["uuid"] == task.uuid
-    assert get_response_json["status"] == task.status
-    assert get_response_json["error_message"] is None
-    assert get_response_json["tracking_id"] is None
 
-    # Download results and verify they match the ones read from the object store
-    download_results = requests.get(get_response_json["result"])
-    assert download_results.status_code == 200
-    assert download_results.content == result
+def test_process_jsonl(client: TestClient, config: Config, test_model_service_ip: str):
+    response = client.post(
+        f"/models/{test_model_service_ip}/process_jsonl",
+        data=(
+            '{"name": "doc1", "text": "Patient diagnosed with kidney failure"}\n'
+            '{"name": "doc2", "text": "Patient diagnosed with kidney failure again, what a week"}'
+        ),
+        headers={"Content-Type": "application/x-ndjson"},
+    )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json, tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key = f"{task.uuid}_payload.ndjson"
+    expected_payload = (
+        b'{"name": "doc1", "text": "Patient diagnosed with kidney failure"}\n'
+        b'{"name": "doc2", "text": "Patient diagnosed with kidney failure again, what a week"}'
+    )
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "jsonl")
+    assert len(parsed) == 2
+
+    for annotation in parsed:
+        verify_annotation_contains_keys(annotation, ANNOTATION_FIELDS_JSONL)
+        assert annotation["label_name"] == "Loss Of Kidney Function"
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_process_bulk(client: TestClient, config: Config, test_model_service_ip: str):
+    response = client.post(
+        f"/models/{test_model_service_ip}/process_bulk",
+        json=[
+            "Patient diagnosed with kidney failure",
+            "Patient diagnosed with kidney failure again, what a week",
+        ],
+        headers={"Content-Type": "application/json"},
+    )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json, tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key = f"{task.uuid}_payload.json"
+    expected_payload = (
+        b'["Patient diagnosed with kidney failure",'
+        b' "Patient diagnosed with kidney failure again, what a week"]'
+    )
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
+
+    assert len(parsed) == 2
+
+    for doc in parsed:
+        assert "text" in doc
+        assert "annotations" in doc
+        assert len(doc["annotations"]) == 1
+
+        annotation = doc["annotations"][0]
+        verify_annotation_contains_keys(annotation, ANNOTATION_FIELDS_JSON)
+        assert annotation["label_name"] == "Loss Of Kidney Function"
+
+    verify_results_match_api_info(client, task, res)

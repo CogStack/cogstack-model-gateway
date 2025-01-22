@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import shutil
@@ -5,13 +6,19 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import requests
 from docker.models.containers import Container
+from fastapi.testclient import TestClient
 from git import Repo
 from testcontainers.compose import DockerCompose
 from testcontainers.core.container import DockerClient, DockerContainer
 from testcontainers.minio import MinioContainer
 from testcontainers.postgres import PostgresContainer
 from testcontainers.rabbitmq import RabbitMqContainer
+
+from cogstack_model_gateway.common.object_store import ObjectStoreManager
+from cogstack_model_gateway.common.queue import QueueManager
+from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
 
 POSTGRES_IMAGE = "postgres:17.2"
 RABBITMQ_IMAGE = "rabbitmq:4.0.4-management-alpine"
@@ -32,6 +39,18 @@ COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW = "docker-compose-mlflow.yml"
 COGSTACK_MODEL_SERVE_NETWORK = "cogstack-model-serve_cms"
 
 TEST_MODEL_SERVICE = "medcat-umls"
+
+ANNOTATION_FIELDS_BASE = [
+    "start",
+    "end",
+    "label_name",
+    "label_id",
+    "categories",
+    "accuracy",
+    "meta_anns",
+]
+ANNOTATION_FIELDS_JSONL = [*ANNOTATION_FIELDS_BASE, "doc_name"]
+ANNOTATION_FIELDS_JSON = [*ANNOTATION_FIELDS_BASE, "athena_ids"]
 
 log = logging.getLogger("cmg.tests.integration")
 
@@ -242,3 +261,85 @@ def stop_cogstack_model_serve(compose_envs: list[DockerCompose]):
         log.debug(f"Stopping {compose_env}...")
         compose_env.stop()
     remove_cogstack_model_serve()
+
+
+def validate_api_response(
+    response: requests.Response, expected_status_code: int, return_json: bool = False
+):
+    assert response.status_code == expected_status_code
+    response_json = response.json()
+    assert all(key in response_json for key in ["uuid", "status"])
+    return response_json if return_json else None
+
+
+def verify_task_submitted_successfully(response_json: dict, tm: TaskManager):
+    assert tm.get_task(response_json["uuid"]), "Failed to submit task: not found in the database"
+
+
+def wait_for_task_completion(task_uuid: str, tm: TaskManager, expected_status: Status) -> Task:
+    """Wait for a task to complete and verify its results."""
+    while (task := tm.get_task(task_uuid)).status != expected_status:
+        if task.status in [Status.FAILED, Status.SUCCEEDED, Status.REQUEUED]:
+            pytest.fail(f"Task '{task_uuid}' completed with unexpected status '{task.status}'")
+
+    # Verify task results
+    if expected_status == Status.SUCCEEDED:
+        assert task.error_message is None, f"Task failed unexpectedly: {task.error_message}"
+        assert task.result is not None, "Task results are missing"
+    elif expected_status == Status.FAILED:
+        assert task.error_message is not None, "Task failed without an error message"
+
+    return task
+
+
+def verify_task_payload_in_object_store(
+    task_payload_key: str, expected_payload: bytes, task_object_store_manager: ObjectStoreManager
+):
+    """Verify that the task payload was stored in the object store."""
+    assert task_object_store_manager.get_object(task_payload_key) == expected_payload
+
+
+def verify_queue_is_empty(queue_manager: QueueManager):
+    """Verify that the queue is empty after the task is processed."""
+    assert queue_manager.is_queue_empty()
+
+
+def download_result_object(
+    key: str,
+    results_object_store_manager: ObjectStoreManager,
+    format: str = "json",
+) -> tuple:
+    result = results_object_store_manager.get_object(key)
+    try:
+        if format == "json":
+            result_json = json.loads(result.decode("utf-8"))
+        elif format == "jsonl":
+            result_json = [json.loads(line) for line in result.decode("utf-8").split("\n") if line]
+        else:
+            pytest.fail(f"Unsupported format: {format}")
+    except json.JSONDecodeError as e:
+        pytest.fail(f"Failed to parse the result as JSON: {result}, {e}")
+
+    return result, result_json
+
+
+def verify_annotation_contains_keys(annotation: dict, expected_keys: list[str]):
+    """Verify that the annotation contains the expected keys."""
+    assert all(key in annotation for key in expected_keys)
+
+
+def verify_results_match_api_info(client: TestClient, task: Task, result: bytes):
+    """Verify results match the information exposed through the user-facing API."""
+    response = client.get(f"/tasks/{task.uuid}", params={"detail": True, "download_url": True})
+    assert response.status_code == 200
+
+    response_json = response.json()
+    assert response_json["uuid"] == task.uuid
+    assert response_json["status"] == task.status
+    assert response_json["error_message"] is None
+    assert response_json["tracking_id"] is None
+
+    # Download results and verify they match the provided ones
+    download_results = requests.get(response_json["result"])
+    assert download_results.status_code == 200
+    assert download_results.content == result
