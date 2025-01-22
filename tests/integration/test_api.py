@@ -28,7 +28,6 @@ def setup(request: pytest.FixtureRequest, cleanup_cms: bool):
     mlflow_addr = svc_addr_map["mlflow-ui"]["address"]
     mlflow_port = svc_addr_map["mlflow-ui"]["port"]
     env = {
-        "CMS_PROJECT_NAME": "cmg-test",  # set in assets/cms.env
         "MLFLOW_TRACKING_URI": f"http://{mlflow_addr}:{mlflow_port}",
     }
     configure_environment(postgres, rabbitmq, minio, extras=env)

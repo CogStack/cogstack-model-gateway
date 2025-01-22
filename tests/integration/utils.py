@@ -27,6 +27,7 @@ COGSTACK_MODEL_SERVE_REPO = "https://github.com/CogStack/CogStack-ModelServe.git
 COGSTACK_MODEL_SERVE_COMMIT = "a55be7b10a83e3bdbdbd1a9e13248e1557fdb0db"
 COGSTACK_MODEL_SERVE_LOCAL_PATH = Path("downloads/CogStack-ModelServe")
 COGSTACK_MODEL_SERVE_COMPOSE = "docker-compose.yml"
+COGSTACK_MODEL_SERVE_COMPOSE_PROJECT_NAME = "cmg-test"
 COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW = "docker-compose-mlflow.yml"
 COGSTACK_MODEL_SERVE_NETWORK = "cogstack-model-serve_cms"
 
@@ -122,6 +123,7 @@ def configure_environment(
         "CMG_OBJECT_STORE_BUCKET_TASKS": "test-tasks",
         "CMG_OBJECT_STORE_BUCKET_RESULTS": "test-results",
         "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
+        "CMS_PROJECT_NAME": COGSTACK_MODEL_SERVE_COMPOSE_PROJECT_NAME,
         **(extras or {}),
     }
     log.debug(env)
@@ -180,6 +182,7 @@ def start_cogstack_model_serve(model_services: list[str]) -> list[DockerCompose]
         env_file.write(const_envvars)
         env_file.write(f"CMS_UID={os.getuid()}\n")
         env_file.write(f"CMS_GID={os.getgid()}\n")
+        env_file.write(f"COMPOSE_PROJECT_NAME={COGSTACK_MODEL_SERVE_COMPOSE_PROJECT_NAME}\n")
         env_file.write(f"MODEL_PACKAGE_FULL_PATH={TEST_CMS_MODEL_PACK.absolute()}\n")
 
     log.debug(f"CogStack Model Serve environment file: {env_file_path}")
