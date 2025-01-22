@@ -108,6 +108,7 @@ services:
     - CMG_QUEUE_HOST=rabbitmq
     - CMG_QUEUE_PORT=5672
     - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    - CMS_PROJECT_NAME=$CMS_PROJECT_NAME
     env_file:
     - .env
     ports:
@@ -144,6 +145,7 @@ services:
     - CMG_QUEUE_HOST=rabbitmq
     - CMG_QUEUE_PORT=5672
     - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
+    - CMG_SCHEDULER_MAX_CONCURRENT_TASKS=$CMG_SCHEDULER_MAX_CONCURRENT_TASKS
     - MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
     env_file:
     - .env
