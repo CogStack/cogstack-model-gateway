@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,6 +23,9 @@ from tests.integration.utils import (
     verify_task_submitted_successfully,
     wait_for_task_completion,
 )
+
+TEST_ASSETS_DIR = Path("tests/integration/assets")
+MULTI_TEXT_FILE_PATH = TEST_ASSETS_DIR / "multi_text_file.json"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -224,6 +229,42 @@ def test_process_bulk(client: TestClient, config: Config, test_model_service_ip:
         b'["Patient diagnosed with kidney failure",'
         b' "Patient diagnosed with kidney failure again, what a week"]'
     )
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
+
+    assert len(parsed) == 2
+
+    for doc in parsed:
+        assert "text" in doc
+        assert "annotations" in doc
+        assert len(doc["annotations"]) == 1
+
+        annotation = doc["annotations"][0]
+        verify_annotation_contains_keys(annotation, ANNOTATION_FIELDS_JSON)
+        assert annotation["label_name"] == "Loss Of Kidney Function"
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_process_bulk_file(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(MULTI_TEXT_FILE_PATH, "rb") as f:
+        response = client.post(
+            f"/models/{test_model_service_ip}/process_bulk_file",
+            files=[("multi_text_file", f)],
+        )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key = f"{task.uuid}_{MULTI_TEXT_FILE_PATH.name}"
+    with open(MULTI_TEXT_FILE_PATH, "rb") as f:
+        expected_payload = f.read()
     verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
 
     verify_queue_is_empty(config.queue_manager)
