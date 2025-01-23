@@ -272,8 +272,8 @@ def validate_api_response(
     return response_json if return_json else None
 
 
-def verify_task_submitted_successfully(response_json: dict, tm: TaskManager):
-    assert tm.get_task(response_json["uuid"]), "Failed to submit task: not found in the database"
+def verify_task_submitted_successfully(task_uuid: str, tm: TaskManager):
+    assert tm.get_task(task_uuid), "Failed to submit task: not found in the database"
 
 
 def wait_for_task_completion(task_uuid: str, tm: TaskManager, expected_status: Status) -> Task:

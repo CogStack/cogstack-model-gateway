@@ -144,7 +144,7 @@ def test_process(client: TestClient, config: Config, test_model_service_ip: str)
     response_json = validate_api_response(response, expected_status_code=200, return_json=True)
 
     tm: TaskManager = config.task_manager
-    verify_task_submitted_successfully(response_json, tm)
+    verify_task_submitted_successfully(response_json["uuid"], tm)
 
     task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
 
@@ -180,7 +180,7 @@ def test_process_jsonl(client: TestClient, config: Config, test_model_service_ip
     response_json = validate_api_response(response, expected_status_code=200, return_json=True)
 
     tm: TaskManager = config.task_manager
-    verify_task_submitted_successfully(response_json, tm)
+    verify_task_submitted_successfully(response_json["uuid"], tm)
 
     task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
 
@@ -215,7 +215,7 @@ def test_process_bulk(client: TestClient, config: Config, test_model_service_ip:
     response_json = validate_api_response(response, expected_status_code=200, return_json=True)
 
     tm: TaskManager = config.task_manager
-    verify_task_submitted_successfully(response_json, tm)
+    verify_task_submitted_successfully(response_json["uuid"], tm)
 
     task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
 
