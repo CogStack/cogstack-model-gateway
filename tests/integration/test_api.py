@@ -351,3 +351,32 @@ def test_redact_with_encryption(client: TestClient, config: Config, test_model_s
     assert len(parsed["encryptions"][0]["encryption"]) > 0
 
     verify_results_match_api_info(client, task, res)
+
+
+def test_preview(client: TestClient, config: Config, test_model_service_ip: str):
+    response = client.post(
+        f"/models/{test_model_service_ip}/preview",
+        data="Patient diagnosed with kidney failure",
+        headers={"Content-Type": "text/plain"},
+    )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key = f"{task.uuid}_payload.txt"
+    expected_payload = b"Patient diagnosed with kidney failure"
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    assert parsed.startswith("<div") and parsed.endswith("</div>")
+    assert "Patient diagnosed with" in parsed
+    assert "kidney failure" in parsed
+    assert "Loss Of Kidney Function" in parsed
+
+    verify_results_match_api_info(client, task, res)
