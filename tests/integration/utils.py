@@ -315,6 +315,8 @@ def download_result_object(
             result_json = json.loads(result.decode("utf-8"))
         elif format == "jsonl":
             result_json = [json.loads(line) for line in result.decode("utf-8").split("\n") if line]
+        elif format == "text":
+            result_json = result.decode("utf-8")
         else:
             pytest.fail(f"Unsupported format: {format}")
     except json.JSONDecodeError as e:
