@@ -28,6 +28,8 @@ from tests.integration.utils import (
 TEST_ASSETS_DIR = Path("tests/integration/assets")
 MULTI_TEXT_FILE_PATH = TEST_ASSETS_DIR / "multi_text_file.json"
 PUBLIC_KEY_PEM_PATH = TEST_ASSETS_DIR / "public_key.pem"
+TRAINER_EXPORT_PATH = TEST_ASSETS_DIR / "trainer_export.json"
+ANOTHER_TRAINER_EXPORT_PATH = TEST_ASSETS_DIR / "another_trainer_export.json"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -378,5 +380,39 @@ def test_preview(client: TestClient, config: Config, test_model_service_ip: str)
     assert "Patient diagnosed with" in parsed
     assert "kidney failure" in parsed
     assert "Loss Of Kidney Function" in parsed
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_preview_trainer_export(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+            response = client.post(
+                f"/models/{test_model_service_ip}/preview_trainer_export",
+                files=[("trainer_export", f1), ("trainer_export", f2)],
+            )
+
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key1 = f"{task.uuid}_{TRAINER_EXPORT_PATH.name}"
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        expected_payload1 = f1.read()
+    verify_task_payload_in_object_store(key1, expected_payload1, config.task_object_store_manager)
+
+    key2 = f"{task.uuid}_{ANOTHER_TRAINER_EXPORT_PATH.name}"
+    with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+        expected_payload2 = f2.read()
+    verify_task_payload_in_object_store(key2, expected_payload2, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    assert len(parsed.split("<br/>")) == 4
 
     verify_results_match_api_info(client, task, res)

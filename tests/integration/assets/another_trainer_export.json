@@ -1,0 +1,748 @@
+{
+    "projects": [
+        {
+            "name": "MT Samples (Clone)",
+            "id": 15,
+            "cuis": "",
+            "tuis": "T047,T048",
+            "documents": [
+                {
+                    "id": 4204,
+                    "name": "1687",
+                    "text": "SUBJECTIVE: , The patient is a 60-year-old female, who complained of coughing during meals.  Her outpatient evaluation revealed a mild-to-moderate cognitive linguistic deficit, which was completed approximately 2 months ago.  The patient had a history of hypertension and TIA/stroke.  The patient denied history of heartburn and/or gastroesophageal reflux disorder.  A modified barium swallow study was ordered to objectively evaluate the patient's swallowing function and safety and to rule out aspiration.,OBJECTIVE: , Modified barium swallow study was performed in the Radiology Suite in cooperation with Dr. ABC.  The patient was seated upright in a video imaging chair throughout this assessment.  To evaluate the patient's swallowing function and safety, she was administered graduated amounts of liquid and food mixed with barium in the form of thin liquid (teaspoon x2, cup sip x2); nectar-thick liquid (teaspoon x2, cup sip x2); puree consistency (teaspoon x2); and solid food consistency (1/4 cracker x1).,ASSESSMENT,ORAL STAGE:,  Premature spillage to the level of the valleculae and pyriform sinuses with thin liquid.  Decreased tongue base retraction, which contributed to vallecular pooling after the swallow.,PHARYNGEAL STAGE: , No aspiration was observed during this evaluation.  Penetration was noted with cup sips of thin liquid only.  Trace residual on the valleculae and on tongue base with nectar-thick puree and solid consistencies.  The patient's hyolaryngeal elevation and anterior movement are within functional limits.  Epiglottic inversion is within functional limits.,CERVICAL ESOPHAGEAL STAGE:  ,The patient's upper esophageal sphincter opening is well coordinated with swallow and readily accepted the bolus.  Radiologist noted reduced peristaltic action of the constricted muscles in the esophagus, which may be contributing to the patient's complaint of globus sensation.,DIAGNOSTIC IMPRESSION:,  No aspiration was noted during this evaluation.  Penetration with cup sips of thin liquid.  The patient did cough during this evaluation, but that was noted related to aspiration or penetration.,PROGNOSTIC IMPRESSION: ,Based on this evaluation, the prognosis for swallowing and safety is good.,PLAN: , Based on this evaluation and following recommendations are being made:,1.  The patient to take small bite and small sips to help decrease the risk of aspiration and penetration.,2.  The patient should remain upright at a 90-degree angle for at least 45 minutes after meals to decrease the risk of aspiration and penetration as well as to reduce her globus sensation.,3.  The patient should be referred to a gastroenterologist for further evaluation of her esophageal function.,The patient does not need any skilled speech therapy for her swallowing abilities at this time, and she is discharged from my services.",
+                    "last_modified": "2020-03-29 14:43:25.537525+00:00",
+                    "annotations": [
+                        {
+                            "id": 45580,
+                            "user": "wish",
+                            "cui": "C0017168",
+                            "value": "gastroesophageal reflux",
+                            "start": 332,
+                            "end": 355,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:06:34.303633+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45581,
+                            "user": "wish",
+                            "cui": "C0020538",
+                            "value": "hypertension",
+                            "start": 255,
+                            "end": 267,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:06:30.394941+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45582,
+                            "user": "wish",
+                            "cui": "C0012634",
+                            "value": "disorder",
+                            "start": 356,
+                            "end": 364,
+                            "validated": true,
+                            "correct": false,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": true,
+                            "last_modified": "2020-04-01 22:06:48.174475+00:00",
+                            "manually_created": false,
+                            "acc": 0.364258020093567,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45583,
+                            "user": "wish",
+                            "cui": "C0038454",
+                            "value": "stroke",
+                            "start": 276,
+                            "end": 282,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:06:33.410261+00:00",
+                            "manually_created": false,
+                            "acc": 0.39498916376357734,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45584,
+                            "user": "wish",
+                            "cui": "C0007787",
+                            "value": "TIA",
+                            "start": 272,
+                            "end": 275,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:06:32.727096+00:00",
+                            "manually_created": false,
+                            "acc": 0.43553226241827225,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": 4205,
+                    "name": "1605",
+                    "text": "CHIEF COMPLAINT: , Chest pain and fever.,HISTORY OF PRESENT ILLNESS: , This 48-year-old white married female presents in the emergency room after two days of increasing fever with recent diagnosis of urinary tract infection on outpatient treatment with nitrofurantoin.  The patient noted since she began to feel poorly earlier on the day of admission, had an episode of substernal chest discomfort that was associated with nausea, dizziness, and sweating.  The patient does have a past medical history of diabetes and hypertension.  In addition, the patient complained of some neck and head discomfort for which she underwent a lumbar puncture in the emergency room; this was normal, causes turned out to be normal as well.  The patient denies nosebleed, visual changes, nausea, vomiting, diarrhea or changes in bowel habits.  She has not had any musculoskeletal or neurological deficits.  She denies any rashes or skin lesions.,PAST MEDICAL HISTORY:  ,Hypertension, diabetes, hyperlipidemia, particularly elevated triglycerides with a slightly elevated LDL at 81 with an new standard LDL of 74, diabetics with a bad family history for cardiovascular disease such as this patient does have, and postmenopausal hot flashes.,PAST SURGICAL HISTORY:  ,Cholecystectomy, appendectomy, oophorectomy.,FAMILY HISTORY: , Positive for coronary artery disease in her father and brother in their 40s.,SOCIAL HISTORY: , She is married and does not smoke or drink nor did she ever.,PHYSICAL EXAMINATION: , On admission, temperature 99.4 degrees F., blood pressure 137/60, pulse 90 and regular without ectopy, respiratory rate 20 without unusual respiratory effort.  In general, she is well developed, well nourished, oriented, and alert and in no apparent distress.  Head, ears, eyes, nose, and throat are unremarkable.  Neck is supple.  No neck vein distention is noted.  No bruits are heard.  Chest is clear to percussion and auscultation.  Heart has a regular rhythm and rate without murmurs or rubs or gallops.  Abdomen is soft, obese, and nontender.  Musculoskeletal is intact without deformity.  However, the patient did develop severe cramp behind her left knee during her treadmill testing.  Neurologic:  Cranial nerves are intact and she is nonfocal.  Skin is warm and dry without rash or lesions noted.,LABORATORY FINDINGS: , Glucose 162, BUN 14, creatinine 1.0, sodium 137, potassium 3.6, chloride 103, bicarbonate 23, protein 4.2.  Liver function panel is normal.  CK was 82.  MB fraction was 1.0.  Troponin was less than 0.1 on three occasions.  White count was 12,200 with a normal differential, hemoglobin was 12.1, platelet count 230,000.  Urinalysis showed positive nitrites, positive leukocyte esterase, 5 to 10 white cells per high power field, and 1+ bacteria rods.  Spinal fluid was clear with 11 red cells, glucose 75, protein 67, white count 0.  EKG was normal.,DIAGNOSES ON ADMISSION:,1.  Urinary tract infection.,2.  Chest pain of unclear etiology, rule out myocardial infarction.,3.  Neck and back pain of unclear etiology with a negative spinal tap.,4.  Hypertension.,5.  Diabetes type II, not treated with insulin.,6.  Hyperlipidemia treated with TriCor but not statins.,7.  Arthritis.,ADDITIONAL LABORATORY STUDIES:,  B-natriuretic peptide was 26.  Urine smear and culture negative on 24 and 48 hours.  Chest x-ray was negative.  Lipid panel - triglycerides 249, VLDL 49, HDL 33, LDL 81.,COURSE IN THE HOSPITAL: , The patient was placed on home medications.  This will be listed at the end of the discharge summary.  She was put on rule out acute myocardial infarction routine, and she did in fact rule out.  She had a stress test completed on the day of discharge which was normal, and she was discharged with a diagnoses of chest pain, acute myocardial infarction ruled out, urinary tract infection, fever secondary to UTI, diabetes mellitus type 2 non-insulin treated, hyperlipidemia with elevated triglycerides and an LDL elevated to 81 with new normal being less than 70.  She has a strong family history of early myocardial disease in the men in their 40s.,DISCHARGE MEDICATIONS:,1.  Enteric-coated aspirin 81 mg one daily.  This is new, as the patient was not taking aspirin at home.,2.  TriCor 48 mg one daily.,3.  Zantac 40 mg one daily.,4.  Lisinopril 20 mg one daily.,5.  Mobic 75 mg one daily for arthritis.,6.  Metformin 500 mg one daily.,7.  Macrodantin one two times a day for several more days.,8.  Zocor 20 mg one daily, which is a new addition.,9.  Effexor XR 37.5 mg one daily.,DIET: , ADA 1800-calorie diet.,ACTIVITY:,  As tolerated.  Continue water exercise five days a week.,DISPOSITION: , Recheck at Hospital with a regular physician there in 1 week.  Consider Byetta as an adjunct to her diabetic treatment and efforts to weight control.",
+                    "last_modified": "2020-03-29 14:43:25.538333+00:00",
+                    "annotations": [
+                        {
+                            "id": 45585,
+                            "user": "wish",
+                            "cui": "C0155626",
+                            "value": "acute myocardial infarction",
+                            "start": 3555,
+                            "end": 3582,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:02.455949+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45586,
+                            "user": "wish",
+                            "cui": "C0155626",
+                            "value": "acute myocardial infarction",
+                            "start": 3752,
+                            "end": 3779,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:05.459069+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45587,
+                            "user": "wish",
+                            "cui": "C0011860",
+                            "value": "diabetes mellitus type 2",
+                            "start": 3840,
+                            "end": 3864,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:10.676220+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45588,
+                            "user": "wish",
+                            "cui": "C0042029",
+                            "value": "urinary tract infection",
+                            "start": 200,
+                            "end": 223,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:06:57.312323+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45589,
+                            "user": "wish",
+                            "cui": "C0042029",
+                            "value": "Urinary tract infection",
+                            "start": 2898,
+                            "end": 2921,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:51.028108+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45590,
+                            "user": "wish",
+                            "cui": "C0042029",
+                            "value": "urinary tract infection",
+                            "start": 3791,
+                            "end": 3814,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:08.633594+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45591,
+                            "user": "wish",
+                            "cui": "C0010068",
+                            "value": "coronary artery disease",
+                            "start": 1324,
+                            "end": 1347,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:39.702986+00:00",
+                            "manually_created": false,
+                            "acc": 0.5504322799558069,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45592,
+                            "user": "wish",
+                            "cui": "C0007222",
+                            "value": "cardiovascular disease",
+                            "start": 1136,
+                            "end": 1158,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:36.229587+00:00",
+                            "manually_created": false,
+                            "acc": 0.558904164365694,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45593,
+                            "user": "wish",
+                            "cui": "C0027051",
+                            "value": "myocardial infarction",
+                            "start": 2968,
+                            "end": 2989,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:53.183209+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45594,
+                            "user": "wish",
+                            "cui": "C0878544",
+                            "value": "myocardial disease",
+                            "start": 4033,
+                            "end": 4051,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:13.396193+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45595,
+                            "user": "wish",
+                            "cui": "C0011860",
+                            "value": "Diabetes type II",
+                            "start": 3084,
+                            "end": 3100,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:57.136409+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45596,
+                            "user": "wish",
+                            "cui": "C0020473",
+                            "value": "hyperlipidemia",
+                            "start": 977,
+                            "end": 991,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:35.202838+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45597,
+                            "user": "wish",
+                            "cui": "C0020473",
+                            "value": "Hyperlipidemia",
+                            "start": 3132,
+                            "end": 3146,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:58.301306+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45598,
+                            "user": "wish",
+                            "cui": "C0020473",
+                            "value": "hyperlipidemia",
+                            "start": 3886,
+                            "end": 3900,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:11.504493+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45599,
+                            "user": "wish",
+                            "cui": "C0020538",
+                            "value": "hypertension",
+                            "start": 518,
+                            "end": 530,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:19.824713+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45600,
+                            "user": "wish",
+                            "cui": "C0037284",
+                            "value": "skin lesions",
+                            "start": 915,
+                            "end": 927,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:30.761228+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45601,
+                            "user": "wish",
+                            "cui": "C0020538",
+                            "value": "Hypertension",
+                            "start": 953,
+                            "end": 965,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:31.752120+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45602,
+                            "user": "wish",
+                            "cui": "C0020538",
+                            "value": "Hypertension",
+                            "start": 3066,
+                            "end": 3078,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:55.539090+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45603,
+                            "user": "wish",
+                            "cui": "C0003864",
+                            "value": "Arthritis",
+                            "start": 3188,
+                            "end": 3197,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:01.409098+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45604,
+                            "user": "wish",
+                            "cui": "C0003864",
+                            "value": "arthritis",
+                            "start": 4323,
+                            "end": 4332,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:17.017254+00:00",
+                            "manually_created": false,
+                            "acc": 1,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45605,
+                            "user": "wish",
+                            "cui": "C0011860",
+                            "value": "diabetes",
+                            "start": 505,
+                            "end": 513,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:10.971059+00:00",
+                            "manually_created": false,
+                            "acc": 0.6018078580960269,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45606,
+                            "user": "wish",
+                            "cui": "C0011849",
+                            "value": "diabetes",
+                            "start": 967,
+                            "end": 975,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:34.520090+00:00",
+                            "manually_created": false,
+                            "acc": 0.6011015540328982,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45607,
+                            "user": "wish",
+                            "cui": "C0338614",
+                            "value": "episode",
+                            "start": 359,
+                            "end": 366,
+                            "validated": true,
+                            "correct": false,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": true,
+                            "last_modified": "2020-04-01 22:07:08.797248+00:00",
+                            "manually_created": false,
+                            "acc": 0.4721907772509702,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45608,
+                            "user": "wish",
+                            "cui": "C0037284",
+                            "value": "lesions",
+                            "start": 2283,
+                            "end": 2290,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:07:42.009112+00:00",
+                            "manually_created": false,
+                            "acc": 0.4283007394246088,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Other",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        },
+                        {
+                            "id": 45609,
+                            "user": "wish",
+                            "cui": "C0042029",
+                            "value": "UTI",
+                            "start": 3835,
+                            "end": 3838,
+                            "validated": true,
+                            "correct": true,
+                            "deleted": false,
+                            "alternative": false,
+                            "killed": false,
+                            "last_modified": "2020-04-01 22:08:09.822242+00:00",
+                            "manually_created": false,
+                            "acc": 0.46978565675753237,
+                            "meta_anns": {
+                                "Status": {
+                                    "name": "Status",
+                                    "value": "Confirmed",
+                                    "acc": 1,
+                                    "validated": true
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
