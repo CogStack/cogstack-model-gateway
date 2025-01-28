@@ -137,7 +137,7 @@ def test_get_model_info(client: TestClient, test_model_service_ip: str):
 
 def test_unsupported_task(client: TestClient, test_model_service_ip: str):
     response = client.post(
-        f"/models/{test_model_service_ip}/unsupported-task",
+        f"/models/{test_model_service_ip}/tasks/unsupported-task",
         headers={"Content-Type": "dummy"},
     )
     assert response.status_code == 404
@@ -146,7 +146,7 @@ def test_unsupported_task(client: TestClient, test_model_service_ip: str):
 
 def test_process(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
-        f"/models/{test_model_service_ip}/process",
+        f"/models/{test_model_service_ip}/tasks/process",
         data="Patient diagnosed with kidney failure",
         headers={"Content-Type": "text/plain"},
     )
@@ -179,7 +179,7 @@ def test_process(client: TestClient, config: Config, test_model_service_ip: str)
 
 def test_process_jsonl(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
-        f"/models/{test_model_service_ip}/process_jsonl",
+        f"/models/{test_model_service_ip}/tasks/process_jsonl",
         data=(
             '{"name": "doc1", "text": "Patient diagnosed with kidney failure"}\n'
             '{"name": "doc2", "text": "Patient diagnosed with kidney failure again, what a week"}'
@@ -214,7 +214,7 @@ def test_process_jsonl(client: TestClient, config: Config, test_model_service_ip
 
 def test_process_bulk(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
-        f"/models/{test_model_service_ip}/process_bulk",
+        f"/models/{test_model_service_ip}/tasks/process_bulk",
         json=[
             "Patient diagnosed with kidney failure",
             "Patient diagnosed with kidney failure again, what a week",
@@ -256,7 +256,7 @@ def test_process_bulk(client: TestClient, config: Config, test_model_service_ip:
 def test_process_bulk_file(client: TestClient, config: Config, test_model_service_ip: str):
     with open(MULTI_TEXT_FILE_PATH, "rb") as f:
         response = client.post(
-            f"/models/{test_model_service_ip}/process_bulk_file",
+            f"/models/{test_model_service_ip}/tasks/process_bulk_file",
             files=[("multi_text_file", f)],
         )
     response_json = validate_api_response(response, expected_status_code=200, return_json=True)
@@ -291,7 +291,7 @@ def test_process_bulk_file(client: TestClient, config: Config, test_model_servic
 
 def test_redact(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
-        f"/models/{test_model_service_ip}/redact",
+        f"/models/{test_model_service_ip}/tasks/redact",
         data="Patient diagnosed with kidney failure",
         headers={"Content-Type": "text/plain"},
     )
@@ -322,7 +322,7 @@ def test_redact_with_encryption(client: TestClient, config: Config, test_model_s
             "public_key_pem": f.read(),
         }
     response = client.post(
-        f"/models/{test_model_service_ip}/redact_with_encryption",
+        f"/models/{test_model_service_ip}/tasks/redact_with_encryption",
         json=payload,
     )
     response_json = validate_api_response(response, expected_status_code=200, return_json=True)
@@ -357,7 +357,7 @@ def test_redact_with_encryption(client: TestClient, config: Config, test_model_s
 
 def test_preview(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.post(
-        f"/models/{test_model_service_ip}/preview",
+        f"/models/{test_model_service_ip}/tasks/preview",
         data="Patient diagnosed with kidney failure",
         headers={"Content-Type": "text/plain"},
     )
@@ -388,7 +388,7 @@ def test_preview_trainer_export(client: TestClient, config: Config, test_model_s
     with open(TRAINER_EXPORT_PATH, "rb") as f1:
         with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
             response = client.post(
-                f"/models/{test_model_service_ip}/preview_trainer_export",
+                f"/models/{test_model_service_ip}/tasks/preview_trainer_export",
                 files=[("trainer_export", f1), ("trainer_export", f2)],
             )
 

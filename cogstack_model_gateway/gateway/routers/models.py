@@ -119,7 +119,7 @@ async def get_model_info(model_name: str):
     return response.json()
 
 
-@router.post("/models/{model_name}/{task}", response_model=dict, tags=["models"])
+@router.post("/models/{model_name}/tasks/{task}", response_model=dict, tags=["models"])
 async def execute_task(
     model_name: str,
     task: str,
