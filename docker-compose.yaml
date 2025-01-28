@@ -124,6 +124,7 @@ services:
         condition: service_healthy
     networks:
     - gateway
+    - cogstack-model-serve_cms
 
   scheduler:
     build:
