@@ -96,7 +96,7 @@ class Scheduler:
             results = self.poll_task_status(task_uuid, tracking_id)
             if results["status"] == Status.FAILED:
                 log.error(f"Task '{task_uuid}' failed: {results['error']}")
-                self.task_manager.update_task(
+                return self.task_manager.update_task(
                     task_uuid, status=Status.FAILED, error_message=str(results["error"])
                 )
             else:
