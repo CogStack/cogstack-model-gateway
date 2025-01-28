@@ -338,8 +338,8 @@ def verify_results_match_api_info(client: TestClient, task: Task, result: bytes)
     response_json = response.json()
     assert response_json["uuid"] == task.uuid
     assert response_json["status"] == task.status
-    assert response_json["error_message"] is None
-    assert response_json["tracking_id"] is None
+    assert response_json["error_message"] == task.error_message
+    assert response_json["tracking_id"] == task.tracking_id
 
     # Download results and verify they match the provided ones
     download_results = requests.get(response_json["result"])
