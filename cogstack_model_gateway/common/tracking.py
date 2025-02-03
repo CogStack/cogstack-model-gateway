@@ -6,7 +6,7 @@ from mlflow.entities import Run, RunStatus
 
 MODEL_URI_TAG = "training.output.model_uri"
 
-log = logging.getLogger("cmg.scheduler")
+log = logging.getLogger("cmg")
 
 
 class TrackingTask:

@@ -6,8 +6,8 @@ import requests
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
+from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.common.utils import parse_content_type_header
-from cogstack_model_gateway.scheduler.tracking import TrackingClient
 
 log = logging.getLogger("cmg.scheduler")
 
