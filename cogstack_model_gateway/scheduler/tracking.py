@@ -4,6 +4,8 @@ import mlflow
 from mlflow import MlflowClient, MlflowException
 from mlflow.entities import Run, RunStatus
 
+MODEL_URI_TAG = "training.output.model_uri"
+
 log = logging.getLogger("cmg.scheduler")
 
 
@@ -84,4 +86,36 @@ class TrackingClient:
             return TrackingTask(run, url)
         except MlflowException as e:
             log.error(f"Failed to get task with tracking ID '{tracking_id}': {e}")
+            return None
+
+    def _find_unique_logged_model(self, tracking_id: str) -> str:
+        artifacts = self._mlflow_client.list_artifacts(tracking_id)
+
+        # check if an artifact called "model" exists
+        if any(artifact.path == "model" and artifact.is_dir for artifact in artifacts):
+            return "model"
+
+        # fall back to artifacts that contain "model" in their path
+        model_candidates = [
+            artifact.path for artifact in artifacts if artifact.is_dir and "model" in artifact.path
+        ]
+
+        # ensure exactly one model was found
+        if len(model_candidates) == 1:
+            return f"runs:/{tracking_id}/{model_candidates[0]}"
+        elif len(model_candidates) > 1:
+            raise ValueError(f"Multiple model artifacts found: {model_candidates}.")
+        else:
+            raise ValueError("No model artifacts found.")
+
+    def get_model_uri(self, tracking_id: str) -> str:
+        """Get the model URI for a given tracking ID."""
+        try:
+            run = self._mlflow_client.get_run(tracking_id)
+            model_uri = run.data.tags.get(MODEL_URI_TAG)
+            if not model_uri:
+                model_uri = self._find_unique_logged_model(tracking_id)
+            return model_uri
+        except Exception as e:
+            log.error(f"Failed to get model URI for task with tracking ID '{tracking_id}': {e}")
             return None
