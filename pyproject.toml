@@ -21,6 +21,10 @@ mlflow = "^2.18.0"
 python-multipart = "^0.0.19"
 minio = "^7.2.12"
 
+[tool.poetry.group.ripper.dependencies]
+docker = "^7.1.0"
+python-dateutil = "^2.9.0.post0"
+
 [tool.poetry.group.dev]
 optional = true
 
