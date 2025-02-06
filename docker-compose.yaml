@@ -161,6 +161,18 @@ services:
     - gateway
     - cogstack-model-serve_cms
 
+  ripper:
+    build:
+      context: .
+      dockerfile: ./cogstack_model_gateway/ripper/Dockerfile
+    restart: always
+    environment:
+    - CMG_RIPPER_INTERVAL=$CMG_RIPPER_INTERVAL
+    env_file:
+    - .env
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+
 volumes:
   pg-data:
     driver: local
