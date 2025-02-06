@@ -5,10 +5,12 @@ import docker
 import mlflow
 from mlflow.entities.model_registry import RegisteredModel
 
-IS_MODEL_LABEL = "org.cogstack.model-serve"
-MODEL_URI_LABEL = "org.cogstack.model-serve.uri"
-PROJECT_NAME_LABEL = "com.docker.compose.project"
-SERVICE_NAME_LABEL = "com.docker.compose.service"
+from cogstack_model_gateway.common.containers import (
+    IS_MODEL_LABEL,
+    MODEL_URI_LABEL,
+    PROJECT_NAME_LABEL,
+    SERVICE_NAME_LABEL,
+)
 
 CMS_PROJECT_ENV_VAR = "CMS_PROJECT_NAME"
 
