@@ -3,16 +3,26 @@ import logging
 from typing import Annotated
 
 import requests
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from docker.errors import DockerException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from cogstack_model_gateway.common.config import Config, get_config
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, TaskManager
-from cogstack_model_gateway.gateway.core.models import get_model_meta, get_running_models
+from cogstack_model_gateway.common.tracking import TrackingClient
+from cogstack_model_gateway.gateway.core.models import (
+    get_model_meta,
+    get_running_models,
+    run_model_container,
+)
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
-from cogstack_model_gateway.gateway.routers.utils import get_content_type, get_query_params
+from cogstack_model_gateway.gateway.routers.utils import (
+    get_content_type,
+    get_query_params,
+    validate_model_name,
+)
 
 SUPPORTED_ENDPOINTS = {
     "info": {"method": "GET", "url": "/info", "content_type": "application/json"},
@@ -117,6 +127,72 @@ async def get_model_info(model_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
     return response.json()
+
+
+@router.post("/models/{model_name}", response_model=dict, tags=["models"])
+async def deploy_model(
+    model_name: Annotated[str, Depends(validate_model_name)],
+    tracking_id: Annotated[
+        str | None,
+        Body(
+            description=(
+                "The tracking ID of the run that generated the model to serve (e.g. MLflow run ID),"
+                " used to fetch the model URI (optional if model_uri is provided explicitly)"
+            )
+        ),
+    ] = None,
+    model_uri: Annotated[
+        str | None,
+        Body(description="The URI of the model to serve (optional if run_id is provided)"),
+    ] = None,
+    ttl: Annotated[
+        int | None,
+        Body(
+            description=(
+                "The deployed model will be deleted after TTL seconds (defaults to 86400, i.e. 1d)."
+                " Set -1 as the TTL value to protect the model from being deleted."
+            )
+        ),
+    ] = 86400,
+):
+    if not tracking_id and not model_uri:
+        raise HTTPException(
+            status_code=400, detail="At least one of tracking_id or model_uri must be provided."
+        )
+
+    if not model_uri and tracking_id:
+        tc = TrackingClient()
+        model_uri = tc.get_model_uri(tracking_id)
+        if not model_uri:
+            raise HTTPException(
+                status_code=404, detail=f"Model not found for tracking ID '{tracking_id}'."
+            )
+
+    if any(model["name"] == model_name for model in get_running_models()):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Model '{model_name}' is already running, please choose a different name."
+                " You can list all available models at /models"
+            ),
+        )
+
+    try:
+        container = run_model_container(model_name, model_uri, ttl)
+    except DockerException as e:
+        log.error(f"Failed to deploy model '{model_name}': {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to deploy model '{model_name}': {str(e)}"
+        )
+
+    log.info(f"Model '{model_name}' deployed successfully with container ID {container.id}")
+    return {
+        "message": f"Model '{model_name}' deployed successfully",
+        "model_uri": model_uri,
+        "container_id": container.id,
+        "container_name": container.name,
+        "ttl": ttl,
+    }
 
 
 @router.post("/models/{model_name}/tasks/{task}", response_model=dict, tags=["models"])
