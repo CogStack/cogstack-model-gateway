@@ -1,6 +1,7 @@
 import logging
 
 import mlflow
+import mlflow.models
 from mlflow import MlflowClient, MlflowException
 from mlflow.entities import Run, RunStatus
 
@@ -76,6 +77,7 @@ class TrackingClient:
     def __init__(self, tracking_uri: str = None):
         self.tracking_uri = tracking_uri or mlflow.get_tracking_uri()
         self._mlflow_client = MlflowClient(self.tracking_uri)
+        mlflow.set_tracking_uri(self.tracking_uri)
 
     def get_task(self, tracking_id: str) -> TrackingTask:
         """Get a task by its tracking ID."""
@@ -118,4 +120,21 @@ class TrackingClient:
             return model_uri
         except Exception as e:
             log.error(f"Failed to get model URI for task with tracking ID '{tracking_id}': {e}")
+            return None
+
+    def get_model_metadata(self, model_uri: str) -> dict:
+        """Get metadata for a model URI."""
+        try:
+            model_info = mlflow.models.get_model_info(model_uri)
+            return {
+                "uuid": model_info.model_uuid,
+                "signature": model_info.signature.to_dict() if model_info.signature else {},
+                "flavors": model_info.flavors,
+                "run_id": model_info.run_id,
+                "artifact_path": model_info.artifact_path,
+                "utc_time_created": model_info.utc_time_created,
+                "mlflow_version": model_info.mlflow_version,
+            }
+        except MlflowException as e:
+            log.error(f"Failed to get model metadata for model URI '{model_uri}': {e}")
             return None

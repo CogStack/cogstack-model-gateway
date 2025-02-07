@@ -1,9 +1,7 @@
 import os
 
 import docker
-import mlflow
 from docker.models.containers import Container
-from mlflow.entities.model_registry import RegisteredModel
 
 from cogstack_model_gateway.common.containers import (
     IS_MODEL_LABEL,
@@ -35,14 +33,6 @@ def get_running_models() -> list[dict]:
         {"name": c.labels.get(SERVICE_NAME_LABEL, c.name), "uri": c.labels.get(MODEL_URI_LABEL)}
         for c in containers
     ]
-
-
-def get_model_meta(model_uri: str) -> RegisteredModel:
-    try:
-        client = mlflow.tracking.MlflowClient()
-        return client.get_registered_model(model_uri)
-    except mlflow.exceptions.MlflowException:
-        return None
 
 
 def run_model_container(model_name: str, model_uri: str, ttl: int):

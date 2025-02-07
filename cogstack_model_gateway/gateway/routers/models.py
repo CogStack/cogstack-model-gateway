@@ -4,7 +4,7 @@ from typing import Annotated
 
 import requests
 from docker.errors import DockerException
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from cogstack_model_gateway.common.config import Config, get_config
@@ -12,11 +12,7 @@ from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
-from cogstack_model_gateway.gateway.core.models import (
-    get_model_meta,
-    get_running_models,
-    run_model_container,
-)
+from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
 from cogstack_model_gateway.gateway.routers.utils import (
     get_content_type,
@@ -103,11 +99,15 @@ router = APIRouter()
 
 
 @router.get("/models/", response_model=list[dict], tags=["models"])
-async def get_models():
+async def get_models(
+    verbose: Annotated[
+        bool | None, Query(description="Include model metadata from the tracking server")
+    ] = False,
+):
     models = get_running_models()
     for model in models:
-        if model["uri"]:
-            if model_info := get_model_meta(model["uri"]):
+        if model["uri"] and verbose:
+            if model_info := TrackingClient().get_model_metadata(model["uri"]):
                 model["info"] = model_info
     return models
 
