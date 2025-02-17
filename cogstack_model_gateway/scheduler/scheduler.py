@@ -37,11 +37,11 @@ class Scheduler:
         self.task_manager.update_task(
             task_uuid, status=Status.SCHEDULED, expected_status=Status.PENDING
         )
-        res = self.route_task(task)
-        task_obj = self.handle_server_response(task_uuid, res, ack, nack)
+        res, err_msg = self.route_task(task)
+        task_obj = self.handle_server_response(task_uuid, res, err_msg, ack, nack)
         self.send_notification(task_obj)
 
-    def route_task(self, task: dict) -> requests.Response:
+    def route_task(self, task: dict) -> tuple[requests.Response, str]:
         log.info(f"Routing task '{task['uuid']}' to model server at {task['url']}")
         request = self._prepare_request(task)
 
@@ -56,30 +56,35 @@ class Scheduler:
                 files=request["files"],
             )
         except Exception as e:
-            log.error(f"Failed to forward task '{task['uuid']}': {e}")
-            return None
+            err_msg = f"Failed to forward task '{task['uuid']}': {e}"
+            log.error(err_msg)
+            return None, err_msg
 
         try:
             log.info(f"Response: {response.text}")
             response.raise_for_status()
             log.info(f"Task '{task['uuid']}' forwarded successfully to {task['url']}")
-            return response
+            return response, None
         except requests.HTTPError:
-            # FIXME: Propagate error to user
-            log.error(f"Failed to process task '{task['uuid']}']: {response.json()}")
-            return None
+            err_msg = f"Failed to process task '{task['uuid']}']: {response.json()}"
+            log.error(err_msg)
+            return None, err_msg
 
     def handle_server_response(
-        self, task_uuid: str, response: requests.Response, ack: callable, nack: callable
+        self,
+        task_uuid: str,
+        response: requests.Response,
+        err_msg: str,
+        ack: callable,
+        nack: callable,
     ) -> Task:
         if response is None:
             # FIXME: Perhaps set task to a different status?
             # Pending and requeued? Or failed and done with?
             # Should we reprocess failed tasks? How can we tell transient failures?
-            # nack()
             ack()
             return self.task_manager.update_task(
-                task_uuid, status=Status.FAILED, error_message="Failed to process task"
+                task_uuid, status=Status.FAILED, error_message=err_msg or "Failed to process task"
             )
         ack()
 
@@ -133,7 +138,7 @@ class Scheduler:
 
     def send_notification(self, task: Task):
         # FIXME: notify user
-        log.info(f"Task '{task.uuid}' {task.status.value}: {task.result}")
+        log.info(f"Task '{task.uuid}' {task.status.value}: {task.result or task.error_message}")
 
     def _get_payload_from_refs(self, refs: list) -> str:
         if len(refs) > 1:
