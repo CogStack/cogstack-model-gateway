@@ -45,3 +45,11 @@ We use pre-commit hooks to ensure code quality. To set them up, follow these ste
     ```shell
     pre-commit run --all-files
     ```
+
+## Testing
+
+To run the tests, use the following command:
+
+```shell
+poetry run pytest
+```
