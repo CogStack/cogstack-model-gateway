@@ -332,7 +332,7 @@ def verify_annotation_contains_keys(annotation: dict, expected_keys: list[str]):
 
 def verify_results_match_api_info(client: TestClient, task: Task, result: bytes):
     """Verify results match the information exposed through the user-facing API."""
-    response = client.get(f"/tasks/{task.uuid}", params={"detail": True, "download_url": True})
+    response = client.get(f"/tasks/{task.uuid}", params={"detail": True})
     assert response.status_code == 200
 
     response_json = response.json()
@@ -342,6 +342,6 @@ def verify_results_match_api_info(client: TestClient, task: Task, result: bytes)
     assert response_json["tracking_id"] == task.tracking_id
 
     # Download results and verify they match the provided ones
-    download_results = requests.get(response_json["result"])
+    download_results = client.get(f"/tasks/{task.uuid}", params={"detail": True, "download": True})
     assert download_results.status_code == 200
     assert download_results.content == result
