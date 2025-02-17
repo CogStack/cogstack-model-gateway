@@ -143,7 +143,7 @@ async def deploy_model(
     ] = None,
     model_uri: Annotated[
         str | None,
-        Body(description="The URI of the model to serve (optional if run_id is provided)"),
+        Body(description="The URI of the model to serve (optional if tracking_id is provided)"),
     ] = None,
     ttl: Annotated[
         int | None,
