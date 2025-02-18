@@ -92,6 +92,10 @@ services:
     build:
       context: .
       dockerfile: ./cogstack_model_gateway/gateway/Dockerfile
+      args:
+      - HTTP_PROXY=$HTTP_PROXY
+      - HTTPS_PROXY=$HTTPS_PROXY
+      - NO_PROXY=$NO_PROXY
     restart: always
     environment:
     - CMG_DB_USER=$CMG_DB_USER
@@ -109,6 +113,12 @@ services:
     - CMG_QUEUE_PORT=5672
     - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
     - CMS_PROJECT_NAME=$CMS_PROJECT_NAME
+    - HTTP_PROXY=$HTTP_PROXY
+    - HTTPS_PROXY=$HTTPS_PROXY
+    - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost
+    - http_proxy=$HTTP_PROXY
+    - https_proxy=$HTTPS_PROXY
+    - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
     env_file:
     - .env
     ports:
@@ -130,6 +140,10 @@ services:
     build:
       context: .
       dockerfile: ./cogstack_model_gateway/scheduler/Dockerfile
+      args:
+      - HTTP_PROXY=$HTTP_PROXY
+      - HTTPS_PROXY=$HTTPS_PROXY
+      - NO_PROXY=$NO_PROXY
     restart: always
     environment:
     - CMG_DB_USER=$CMG_DB_USER
@@ -148,6 +162,12 @@ services:
     - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
     - CMG_SCHEDULER_MAX_CONCURRENT_TASKS=$CMG_SCHEDULER_MAX_CONCURRENT_TASKS
     - MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
+    - HTTP_PROXY=$HTTP_PROXY
+    - HTTPS_PROXY=$HTTPS_PROXY
+    - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost
+    - http_proxy=$HTTP_PROXY
+    - https_proxy=$HTTPS_PROXY
+    - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
     env_file:
     - .env
     depends_on:
@@ -165,9 +185,19 @@ services:
     build:
       context: .
       dockerfile: ./cogstack_model_gateway/ripper/Dockerfile
+      args:
+      - HTTP_PROXY=$HTTP_PROXY
+      - HTTPS_PROXY=$HTTPS_PROXY
+      - NO_PROXY=$NO_PROXY
     restart: always
     environment:
     - CMG_RIPPER_INTERVAL=$CMG_RIPPER_INTERVAL
+    - HTTP_PROXY=$HTTP_PROXY
+    - HTTPS_PROXY=$HTTPS_PROXY
+    - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost
+    - http_proxy=$HTTP_PROXY
+    - https_proxy=$HTTPS_PROXY
+    - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
     env_file:
     - .env
     volumes:
