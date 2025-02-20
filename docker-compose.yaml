@@ -13,7 +13,7 @@ services:
     expose:
     - 5432
     ports:
-    - 5432:5432
+    - 5432
     networks:
     - postgres
     - gateway
@@ -37,8 +37,8 @@ services:
     - 9000
     - 9001
     ports:
-    - 9000:9000
-    - 9001:9001
+    - 9000
+    - 9001
     networks:
     - gateway
     volumes:
@@ -60,7 +60,7 @@ services:
     env_file:
     - .env
     ports:
-    - 15433:80
+    - 80
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,8 +78,8 @@ services:
     expose:
     - 5672
     ports:
-    - 5672:5672
-    - 15672:15672
+    - 5672
+    - 15672
     networks:
     - gateway
     volumes:
@@ -117,6 +117,8 @@ services:
     - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
     env_file:
     - .env
+    expose:
+    - 8000
     ports:
     - 8888:8000
     volumes:
