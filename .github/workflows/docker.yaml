@@ -20,6 +20,7 @@ jobs:
       attestations: write
     strategy:
       matrix:
+        service: [ gateway, scheduler, ripper ]
         include:
         - service: gateway
           image: cogstacksystems/cogstack-model-gateway
@@ -70,7 +71,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.meta.outputs.tags }}
-            ${{ env.REGISTRY }}/${{ matrix.image }}:latest
+            ${{ matrix.image }}:latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
