@@ -1,3 +1,5 @@
+name: cmg
+
 services:
   postgres:
     image: postgres:17.2
@@ -89,13 +91,7 @@ services:
       retries: 3
 
   gateway:
-    build:
-      context: .
-      dockerfile: ./cogstack_model_gateway/gateway/Dockerfile
-      args:
-      - HTTP_PROXY=$HTTP_PROXY
-      - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=$NO_PROXY
+    image: cogstacksystems/cogstack-model-gateway:latest
     restart: always
     environment:
     - CMG_DB_USER=$CMG_DB_USER
@@ -137,13 +133,7 @@ services:
     - cogstack-model-serve_cms
 
   scheduler:
-    build:
-      context: .
-      dockerfile: ./cogstack_model_gateway/scheduler/Dockerfile
-      args:
-      - HTTP_PROXY=$HTTP_PROXY
-      - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=$NO_PROXY
+    image: cogstacksystems/cogstack-model-gateway-scheduler:latest
     restart: always
     environment:
     - CMG_DB_USER=$CMG_DB_USER
@@ -182,13 +172,7 @@ services:
     - cogstack-model-serve_cms
 
   ripper:
-    build:
-      context: .
-      dockerfile: ./cogstack_model_gateway/ripper/Dockerfile
-      args:
-      - HTTP_PROXY=$HTTP_PROXY
-      - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=$NO_PROXY
+    image: cogstacksystems/cogstack-model-gateway-ripper:latest
     restart: always
     environment:
     - CMG_RIPPER_INTERVAL=$CMG_RIPPER_INTERVAL
