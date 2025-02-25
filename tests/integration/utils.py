@@ -4,7 +4,9 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from urllib.parse import urlparse
 
+import mlflow
 import pytest
 import requests
 from docker.models.containers import Container
@@ -345,3 +347,35 @@ def verify_results_match_api_info(client: TestClient, task: Task, result: bytes)
     download_results = client.get(f"/tasks/{task.uuid}", params={"detail": True, "download": True})
     assert download_results.status_code == 200
     assert download_results.content == result
+
+
+def parse_mlflow_url(url: str) -> tuple:
+    response = requests.get(url)
+    assert response.status_code == 200
+
+    try:
+        parsed_url = urlparse(url)
+    except Exception as e:
+        pytest.fail(f"Failed to parse URL: {url}, {e}")
+
+    tracking_uri = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    assert tracking_uri == mlflow.get_tracking_uri()
+
+    path_parts = parsed_url.fragment.split("/")
+    assert len(path_parts) >= 4 and path_parts[1] == "experiments" and path_parts[3] == "runs"
+
+    experiment_id, run_id = path_parts[2], path_parts[4]
+
+    try:
+        _ = mlflow.get_experiment(experiment_id)
+    except Exception as e:
+        pytest.fail(f"Failed to get experiment '{experiment_id}': {e}")
+
+    try:
+        run = mlflow.get_run(run_id)
+    except Exception as e:
+        pytest.fail(f"Failed to get run '{run_id}': {e}")
+
+    assert run.info.experiment_id == experiment_id
+
+    return tracking_uri, experiment_id, run_id
