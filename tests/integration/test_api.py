@@ -13,6 +13,7 @@ from tests.integration.utils import (
     TEST_MODEL_SERVICE,
     configure_environment,
     download_result_object,
+    parse_mlflow_url,
     setup_cms,
     setup_scheduler,
     setup_testcontainers,
@@ -414,5 +415,33 @@ def test_preview_trainer_export(client: TestClient, config: Config, test_model_s
     res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
 
     assert len(parsed.split("<br/>")) == 4
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_evaluate(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(TRAINER_EXPORT_PATH, "rb") as f:
+        response = client.post(
+            f"/models/{test_model_service_ip}/tasks/evaluate",
+            files=[("trainer_export", f)],
+        )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key = f"{task.uuid}_{TRAINER_EXPORT_PATH.name}"
+    with open(TRAINER_EXPORT_PATH, "rb") as f:
+        expected_payload = f.read()
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    _, _, run_id = parse_mlflow_url(parsed)
+    assert run_id == task.tracking_id
 
     verify_results_match_api_info(client, task, res)
