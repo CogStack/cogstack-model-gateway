@@ -20,6 +20,7 @@ from cogstack_model_gateway.gateway.routers.utils import (
     validate_model_name,
 )
 
+DEFAULT_CONTENT_TYPE = "text/plain"
 SUPPORTED_ENDPOINTS = {
     "info": {"method": "GET", "url": "/info", "content_type": "application/json"},
     "process": {"method": "POST", "url": "/process", "content_type": "text/plain"},
@@ -213,7 +214,10 @@ async def execute_task(
             detail=f"Task '{task}' not found. Supported tasks are: {supported_endpoints_str}",
         )
 
-    if parsed_content_type != endpoint["content_type"]:
+    if (
+        parsed_content_type != endpoint["content_type"]
+        and parsed_content_type != DEFAULT_CONTENT_TYPE
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported content type: expected {endpoint['content_type']}",
