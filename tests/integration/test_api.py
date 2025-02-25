@@ -1,4 +1,5 @@
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -417,6 +418,60 @@ def test_preview_trainer_export(client: TestClient, config: Config, test_model_s
     res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
 
     assert len(parsed.split("<br/>")) == 4
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_train_unsupervised(client: TestClient, config: Config, test_model_service_ip: str):
+    payload = str.encode('["Patient diagnosed with kidney failure"]')
+    with tempfile.NamedTemporaryFile("r+b") as f:
+        payload_file = Path(f.name).name
+        f.write(payload)
+        f.seek(0)
+        response = client.post(
+            f"/models/{test_model_service_ip}/tasks/train_unsupervised",
+            files=[("training_data", f)],
+        )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+    key = f"{task.uuid}_{payload_file}"
+    verify_task_payload_in_object_store(key, payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    _, _, run_id = parse_mlflow_url(parsed)
+    assert run_id == task.tracking_id
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_train_unsupervised_with_hf_hub_dataset(
+    client: TestClient, config: Config, test_model_service_ip: str
+):
+    response = client.post(
+        f"/models/{test_model_service_ip}/tasks/train_unsupervised_with_hf_hub_dataset",
+        params={"hf_dataset_repo_id": "imdb"},
+        headers={"Content-Type": "text/plain"},
+    )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    _, _, run_id = parse_mlflow_url(parsed)
+    assert run_id == task.tracking_id
 
     verify_results_match_api_info(client, task, res)
 
