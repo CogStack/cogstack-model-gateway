@@ -31,6 +31,8 @@ MULTI_TEXT_FILE_PATH = TEST_ASSETS_DIR / "multi_text_file.json"
 PUBLIC_KEY_PEM_PATH = TEST_ASSETS_DIR / "public_key.pem"
 TRAINER_EXPORT_PATH = TEST_ASSETS_DIR / "trainer_export.json"
 ANOTHER_TRAINER_EXPORT_PATH = TEST_ASSETS_DIR / "another_trainer_export.json"
+CONCATENATED_TRAINER_EXPORTS_PATH = TEST_ASSETS_DIR / "concatenated_trainer_exports.json"
+ANNOTATION_STATS_CSV_PATH = TEST_ASSETS_DIR / "annotation_stats.csv"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -443,5 +445,138 @@ def test_evaluate(client: TestClient, config: Config, test_model_service_ip: str
 
     _, _, run_id = parse_mlflow_url(parsed)
     assert run_id == task.tracking_id
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_sanity_check(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(TRAINER_EXPORT_PATH, "rb") as f:
+        response = client.post(
+            f"/models/{test_model_service_ip}/tasks/sanity-check",
+            files=[("trainer_export", f)],
+        )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key = f"{task.uuid}_{TRAINER_EXPORT_PATH.name}"
+    with open(TRAINER_EXPORT_PATH, "rb") as f:
+        expected_payload = f.read()
+    verify_task_payload_in_object_store(key, expected_payload, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    assert parsed == "concept,name,precision,recall,f1\n"
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_iaa_scores(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+            response = client.post(
+                f"/models/{test_model_service_ip}/tasks/iaa-scores",
+                params={
+                    "annotator_a_project_id": 14,
+                    "annotator_b_project_id": 15,
+                    "scope": "per_concept",
+                },
+                files=[("trainer_export", f1), ("trainer_export", f2)],
+            )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key1 = f"{task.uuid}_{TRAINER_EXPORT_PATH.name}"
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        expected_payload1 = f1.read()
+    verify_task_payload_in_object_store(key1, expected_payload1, config.task_object_store_manager)
+
+    key2 = f"{task.uuid}_{ANOTHER_TRAINER_EXPORT_PATH.name}"
+    with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+        expected_payload2 = f2.read()
+    verify_task_payload_in_object_store(key2, expected_payload2, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    assert parsed == "concept,iaa_percentage,cohens_kappa,iaa_percentage_meta,cohens_kappa_meta\n"
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_concat_trainer_exports(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+            response = client.post(
+                f"/models/{test_model_service_ip}/tasks/concat_trainer_exports",
+                files=[("trainer_export", f1), ("trainer_export", f2)],
+            )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key1 = f"{task.uuid}_{TRAINER_EXPORT_PATH.name}"
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        expected_payload1 = f1.read()
+    verify_task_payload_in_object_store(key1, expected_payload1, config.task_object_store_manager)
+
+    key2 = f"{task.uuid}_{ANOTHER_TRAINER_EXPORT_PATH.name}"
+    with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+        expected_payload2 = f2.read()
+    verify_task_payload_in_object_store(key2, expected_payload2, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    with open(CONCATENATED_TRAINER_EXPORTS_PATH) as f:
+        assert json.loads(parsed) == json.load(f)
+
+    verify_results_match_api_info(client, task, res)
+
+
+def test_annotation_stats(client: TestClient, config: Config, test_model_service_ip: str):
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+            response = client.post(
+                f"/models/{test_model_service_ip}/tasks/annotation-stats",
+                files=[("trainer_export", f1), ("trainer_export", f2)],
+            )
+    response_json = validate_api_response(response, expected_status_code=200, return_json=True)
+
+    tm: TaskManager = config.task_manager
+    verify_task_submitted_successfully(response_json["uuid"], tm)
+
+    task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
+
+    key1 = f"{task.uuid}_{TRAINER_EXPORT_PATH.name}"
+    with open(TRAINER_EXPORT_PATH, "rb") as f1:
+        expected_payload1 = f1.read()
+    verify_task_payload_in_object_store(key1, expected_payload1, config.task_object_store_manager)
+
+    key2 = f"{task.uuid}_{ANOTHER_TRAINER_EXPORT_PATH.name}"
+    with open(ANOTHER_TRAINER_EXPORT_PATH, "rb") as f2:
+        expected_payload2 = f2.read()
+    verify_task_payload_in_object_store(key2, expected_payload2, config.task_object_store_manager)
+
+    verify_queue_is_empty(config.queue_manager)
+
+    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+
+    with open(ANNOTATION_STATS_CSV_PATH) as f:
+        assert parsed == f.read()
 
     verify_results_match_api_info(client, task, res)
