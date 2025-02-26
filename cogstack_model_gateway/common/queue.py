@@ -8,7 +8,7 @@ from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic, BasicProperties
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-log = logging.getLogger("cmg")
+log = logging.getLogger("cmg.common")
 
 DEFAULT_RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"
 DEFAULT_QUEUE_NAME = "cmg_tasks"

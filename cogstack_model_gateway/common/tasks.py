@@ -7,7 +7,7 @@ from sqlmodel import Field, Session, SQLModel, select
 
 from cogstack_model_gateway.common.db import DatabaseManager
 
-log = logging.getLogger("cmg")
+log = logging.getLogger("cmg.common")
 
 
 class Status(str, Enum):

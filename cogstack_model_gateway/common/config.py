@@ -4,7 +4,7 @@ import os
 
 from dotenv import load_dotenv
 
-log = logging.getLogger("cmg")
+log = logging.getLogger("cmg.common")
 
 CONFIG_FILE = os.getenv("CONFIG_FILE", "config.json")
 ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX = "CMG_"

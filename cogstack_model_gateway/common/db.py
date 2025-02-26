@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from sqlalchemy.exc import ProgrammingError
 from sqlmodel import Session, SQLModel, create_engine
 
-log = logging.getLogger("cmg")
+log = logging.getLogger("cmg.common")
 
 DEFAULT_POSTGRES_URL = "postgresql+psycopg2://user:password@postgres/cmg_tasks"
 

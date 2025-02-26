@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from minio import Minio
 
-log = logging.getLogger("cmg")
+log = logging.getLogger("cmg.common")
 
 DEFAULT_MINIO_ENDPOINT = "localhost:9000"
 DEFAULT_ACCESS_KEY = "admin"
