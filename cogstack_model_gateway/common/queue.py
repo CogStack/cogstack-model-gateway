@@ -25,6 +25,8 @@ class QueueManager:
         connection_url: str = None,
         max_concurrent_tasks: int = 1,
     ):
+        logging.getLogger("pika").setLevel(logging.WARNING)
+
         if user and password and host and port:
             self.connection_url = f"amqp://{user}:{password}@{host}:{port}/"
         elif connection_url:
