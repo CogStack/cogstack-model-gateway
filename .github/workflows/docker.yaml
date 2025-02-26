@@ -1,11 +1,11 @@
 name: Build and push Docker images
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*.*.*"
+  workflow_run:
+    workflows:
+      - "Python tests"
+    types:
+      - completed
   workflow_dispatch:
 
 env:
@@ -14,6 +14,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       packages: write
