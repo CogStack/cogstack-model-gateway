@@ -48,7 +48,9 @@ def setup(request: pytest.FixtureRequest, cleanup_cms: bool):
     env = {
         "MLFLOW_TRACKING_URI": f"http://{mlflow_addr}:{mlflow_port}",
     }
-    configure_environment(postgres, rabbitmq, minio, extras=env)
+
+    enable_cmg_logging = request.config.getoption("--enable-cmg-logging")
+    configure_environment(postgres, rabbitmq, minio, enable_logs=enable_cmg_logging, extras=env)
 
     setup_scheduler(request)
 

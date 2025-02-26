@@ -121,12 +121,17 @@ def configure_environment(
     postgres: PostgresContainer,
     rabbitmq: RabbitMqContainer,
     minio: MinioContainer,
+    enable_logs: bool = False,
     extras: dict = None,
 ):
     log.info("Setting environment variables...")
+    cmg_log_level = logging.INFO if enable_logs else logging.WARNING
     queue_connection_params = rabbitmq.get_connection_params()
     minio_host, minio_port = minio.get_config()["endpoint"].split(":")
     env = {
+        "CMG_COMMON_LOG_LEVEL": logging.getLevelName(logging.WARNING),
+        "CMG_GATEWAY_LOG_LEVEL": logging.getLevelName(cmg_log_level),
+        "CMG_SCHEDULER_LOG_LEVEL": logging.getLevelName(cmg_log_level),
         "CMG_DB_USER": postgres.username,
         "CMG_DB_PASSWORD": postgres.password,
         "CMG_DB_HOST": postgres.get_container_host_ip(),
@@ -157,8 +162,6 @@ def start_scheduler():
         ["poetry", "run", "python3", SCHEDULER_SCRIPT_PATH],
         start_new_session=True,
         env=dict(os.environ),
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
     )
 
 
