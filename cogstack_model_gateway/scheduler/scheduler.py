@@ -46,7 +46,7 @@ class Scheduler:
         request = self._prepare_request(task)
 
         try:
-            log.info(f"Request: {request}")
+            log.debug(f"Request: {request}")
             response = requests.request(
                 method=request["method"],
                 url=request["url"],
@@ -61,7 +61,7 @@ class Scheduler:
             return None, err_msg
 
         try:
-            log.info(f"Response: {response.text}")
+            log.debug(f"Response: {response.text}")
             response.raise_for_status()
             log.info(f"Task '{task['uuid']}' forwarded successfully to {task['url']}")
             return response, None

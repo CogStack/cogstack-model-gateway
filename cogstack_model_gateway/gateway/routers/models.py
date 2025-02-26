@@ -275,7 +275,8 @@ async def execute_task(
     }
     priority = calculate_task_priority(task, config)
 
-    log.info(f"Executing task: {task}")
+    log.info(f"Executing task '{task['uuid']}': {task['method']} {task['url']}")
+    log.debug(f"Task details: {task}")
     qm: QueueManager = config.queue_manager
     qm.publish(task, priority)
 
