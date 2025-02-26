@@ -49,7 +49,7 @@ known-local-folder = ["common", "gateway", "scheduler"]
 select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
-addopts = "-ra"
+addopts = "-ra -s --disable-warnings"
 pythonpath = ["."]
 testpaths = ["tests"]
 
