@@ -417,7 +417,7 @@ def test_preview_trainer_export(client: TestClient, config: Config, test_model_s
 
     res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
 
-    assert len(parsed.split("<br/>")) == 4
+    assert len(parsed.split("<br/>")) == 12
 
     verify_results_match_api_info(client, task, res)
 
