@@ -3,12 +3,12 @@ import sys
 
 from cogstack_model_gateway.common.config import load_config
 from cogstack_model_gateway.common.db import DatabaseManager
+from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.scheduler.scheduler import Scheduler
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("cmg.scheduler")
 
 
@@ -58,6 +58,7 @@ def initialize_connections() -> (
 
 
 def main():
+    configure_logging()
     connections = initialize_connections()
 
     scheduler = Scheduler(

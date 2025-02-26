@@ -5,17 +5,18 @@ from fastapi import FastAPI
 
 from cogstack_model_gateway.common.config import load_config
 from cogstack_model_gateway.common.db import DatabaseManager
+from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.gateway.routers import models, tasks
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("cmg.gateway")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()
     log.info("Initializing database and queue connections")
 
     config = load_config()

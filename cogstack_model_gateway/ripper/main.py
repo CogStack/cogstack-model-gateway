@@ -15,10 +15,10 @@ from cogstack_model_gateway.common.containers import (
     MANAGED_BY_LABEL_VALUE,
     TTL_LABEL,
 )
+from cogstack_model_gateway.common.logging import configure_logging
 
 PURGE_INTERVAL = int(os.getenv("CMG_RIPPER_INTERVAL") or 60)
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("cmg.ripper")
 
 
@@ -59,5 +59,10 @@ def purge_expired_containers():
         time.sleep(PURGE_INTERVAL)
 
 
+def main():
+    configure_logging()
+    purge_expired_containers()
+
+
 if __name__ == "__main__":
-    sys.exit(purge_expired_containers())
+    sys.exit(main())
