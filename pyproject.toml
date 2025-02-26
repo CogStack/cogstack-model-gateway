@@ -49,7 +49,7 @@ known-local-folder = ["common", "gateway", "scheduler"]
 select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
-addopts = "-ra -s --disable-warnings"
+addopts = "-ra -s --disable-warnings --enable-cmg-logging"
 pythonpath = ["."]
 testpaths = ["tests"]
 
