@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 import os
@@ -55,6 +56,26 @@ ANNOTATION_FIELDS_JSONL = [*ANNOTATION_FIELDS_BASE, "doc_name"]
 ANNOTATION_FIELDS_JSON = [*ANNOTATION_FIELDS_BASE, "athena_ids"]
 
 log = logging.getLogger("cmg.tests.integration")
+
+cms_compose: DockerCompose = None
+cms_mlflow_compose: DockerCompose = None
+
+
+def dump_cms_logs_on_failure(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logs = cms_compose.get_logs()
+            log.error("CogStack Model Serve Logs:\nstdout: %s\nstderr: %s", logs[0], logs[1])
+
+            mlflow_logs = cms_mlflow_compose.get_logs()
+            log.error("MLflow Logs:\nstdout: %s\nstderr: %s", mlflow_logs[0], mlflow_logs[1])
+
+            raise e
+
+    return wrapper
 
 
 def setup_testcontainers(request: pytest.FixtureRequest):
@@ -211,29 +232,29 @@ def start_cogstack_model_serve(model_services: list[str]) -> list[DockerCompose]
 
     log.debug(f"CogStack Model Serve environment file: {env_file_path}")
 
-    compose: DockerCompose = None
-    compose_mlflow: DockerCompose = None
+    global cms_compose, cms_mlflow_compose
 
     try:
-        compose = DockerCompose(
+        cms_compose = DockerCompose(
             context=COGSTACK_MODEL_SERVE_LOCAL_PATH,
             compose_file_name=COGSTACK_MODEL_SERVE_COMPOSE,
             env_file=".env",
             services=model_services,
         )
-        compose.start()
+        cms_compose.start()
 
-        compose_mlflow = DockerCompose(
+        cms_mlflow_compose = DockerCompose(
             context=COGSTACK_MODEL_SERVE_LOCAL_PATH,
             compose_file_name=COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW,
             env_file=".env",
             services=["mlflow-ui", "mlflow-db", "minio", "model-bucket-init"],
         )
-        compose_mlflow.start()
-        return [compose, compose_mlflow]
+        cms_mlflow_compose.start()
+
+        return [cms_compose, cms_mlflow_compose]
     except subprocess.CalledProcessError as e:
         log.info(e.stderr)
-        stop_cogstack_model_serve([env for env in (compose, compose_mlflow) if env])
+        stop_cogstack_model_serve([env for env in (cms_compose, cms_mlflow_compose) if env])
         raise
 
 
@@ -281,11 +302,12 @@ def verify_task_submitted_successfully(task_uuid: str, tm: TaskManager):
     assert tm.get_task(task_uuid), "Failed to submit task: not found in the database"
 
 
+@dump_cms_logs_on_failure
 def wait_for_task_completion(task_uuid: str, tm: TaskManager, expected_status: Status) -> Task:
     """Wait for a task to complete and verify its results."""
     while (task := tm.get_task(task_uuid)).status != expected_status:
         if task.status in [Status.FAILED, Status.SUCCEEDED, Status.REQUEUED]:
-            pytest.fail(f"Task '{task_uuid}' completed with unexpected status '{task.status}'")
+            raise ValueError(f"Task '{task_uuid}' completed with unexpected status '{task.status}'")
 
     # Verify task results
     if expected_status == Status.SUCCEEDED:
