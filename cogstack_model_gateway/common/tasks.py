@@ -18,6 +18,9 @@ class Status(str, Enum):
     FAILED = "failed"
     REQUEUED = "requeued"
 
+    def is_final(self) -> bool:
+        return self in {self.SUCCEEDED, self.FAILED}
+
 
 class Task(SQLModel, table=True):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)

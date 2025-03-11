@@ -26,6 +26,13 @@ def task_manager(db_manager: Session) -> TaskManager:
     return TaskManager(db_manager)
 
 
+def test_status_enum() -> None:
+    for status in Status:
+        assert isinstance(status, Status)
+        assert isinstance(status.value, str)
+        assert status.is_final() == (status in {Status.SUCCEEDED, Status.FAILED})
+
+
 def test_create_task(task_manager: TaskManager) -> None:
     """Test creating a task with different statuses."""
     task_uuid = task_manager.create_task(status=Status.PENDING)
