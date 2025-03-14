@@ -4,6 +4,7 @@ import pytest
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add options to the pytest command line."""
     parser.addoption(
         "--skip-cleanup-cms",
         action="store_true",
@@ -21,11 +22,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.fixture(scope="module")
 def cleanup_cms(request: pytest.FixtureRequest) -> bool:
+    """Determine whether to cleanup the CMS resources after completing the tests."""
     return not request.config.getoption("--skip-cleanup-cms")
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_logging() -> None:
+    """Set up logging for the CogStack Model Gateway test resources.
+
+    Suppress logging from the `testcontainers` package, set the logging level for the CogStack Model
+    Gateway to DEBUG, and for the tests to INFO.
+    """
     # Suppress logging from testcontainers
     for logger_name in logging.root.manager.loggerDict:
         if logger_name.startswith("testcontainers"):

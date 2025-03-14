@@ -105,6 +105,11 @@ async def get_models(
         bool | None, Query(description="Include model metadata from the tracking server")
     ] = False,
 ):
+    """List running model servers and attach metadata from the tracking server.
+
+    Metadata is only included if the `verbose` query parameter is set to `true` and a tracking URI
+    is found for the model server.
+    """
     models = get_running_models()
     for model in models:
         if model["uri"] and verbose:
@@ -115,6 +120,7 @@ async def get_models(
 
 @router.get("/models/{model_name}/info", response_model=dict, tags=["models"])
 async def get_model_info(model_name: str):
+    """Get information about a running model server through its `/info` API."""
     response = requests.get(f"http://{model_name}:8000/info")
     if response.status_code == 404:
         raise HTTPException(
@@ -156,6 +162,15 @@ async def deploy_model(
         ),
     ] = 86400,
 ):
+    """Deploy a CogStack Model Serve instance with a given model URI or tracking ID.
+
+    The model URI refers to the location of the model artifact to be served, which can be found on
+    the tracking server (e.g. MLflow). The tracking ID, on the other hand, refers to the ID of the
+    run that generated the model artifact (e.g. MLflow run for model training) and is only used to
+    fetch the model URI if not provided explicitly. The model is deployed as a Docker container
+    with the specified name and the CogStack Model Serve image. The container is labelled with the
+    model URI, the project name, and the TTL value to determine its expiration time.
+    """
     if not tracking_id and not model_uri:
         raise HTTPException(
             status_code=400, detail="At least one of tracking_id or model_uri must be provided."
@@ -206,6 +221,16 @@ async def execute_task(
     query_params: Annotated[dict[str, str], Depends(get_query_params)],
     config: Annotated[Config, Depends(get_config)],
 ):
+    """Schedule a task for execution on a running model server.
+
+    The task is assigned a tracking ID used throughout the stack and is scheduled by publishing a
+    message to the task queue with the task details (e.g. method, URL, payload, content type). This
+    process varies depending on the content type of the original request. Payloads in the form of
+    textual data or JSON are serialized and uploaded to the object store, while a reference to the
+    uploaded object is included in the task details. For multipart requests, each part is processed
+    separately; files are uploaded to the object store, while other fields are included as-is in the
+    task details.
+    """
     endpoint = SUPPORTED_ENDPOINTS.get(task)
     if not endpoint:
         supported_endpoints_str = ", ".join(SUPPORTED_ENDPOINTS.keys())

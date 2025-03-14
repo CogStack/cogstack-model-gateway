@@ -19,6 +19,7 @@ class Status(str, Enum):
     REQUEUED = "requeued"
 
     def is_final(self) -> bool:
+        """Check if the status is final (i.e. succeeded or failed)."""
         return self in {self.SUCCEEDED, self.FAILED}
 
 
@@ -36,6 +37,8 @@ class TaskManager:
 
     @staticmethod
     def with_db_session(func):
+        """Decorator to provide a database session to a method."""
+
         @wraps(func)
         def wrapper(self: "TaskManager", *args, **kwargs):
             with self.db_manager.get_session() as session:
@@ -45,6 +48,7 @@ class TaskManager:
 
     @with_db_session
     def create_task(self, session: Session, status: str) -> str:
+        """Create a new task with the specified status."""
         task = Task(status=status)
         session.add(task)
         session.commit()
@@ -53,6 +57,7 @@ class TaskManager:
 
     @with_db_session
     def get_task(self, session: Session, task_uuid: str) -> Task:
+        """Get a task by UUID."""
         statement = select(Task).where(Task.uuid == task_uuid)
         result = session.exec(statement).first()
         if result:
@@ -72,6 +77,11 @@ class TaskManager:
         result: str = None,
         error_message: str = None,
     ) -> Task:
+        """Update task details.
+
+        If `status` is provided, the task status is updated only if the current status matches the
+        specified `expected_status`.
+        """
         if task := session.get(Task, task_uuid):
             original_status = task.status
             if status:

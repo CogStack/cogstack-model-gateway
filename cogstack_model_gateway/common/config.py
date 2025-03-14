@@ -98,6 +98,7 @@ def load_config() -> Config:
 
 
 def get_config() -> Config:
+    """Get the current configuration instance."""
     if _config_instance is None:
         raise RuntimeError("Config not initialized. Call load_config() first.")
     return _config_instance

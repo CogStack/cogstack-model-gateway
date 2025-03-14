@@ -16,6 +16,7 @@ log = logging.getLogger("cmg.gateway")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Setup gateway and initialize database, object store, queue, and task manager connections."""
     configure_logging()
     log.info("Initializing database and queue connections")
 
@@ -72,4 +73,5 @@ app.include_router(tasks.router)
 
 @app.get("/")
 async def root():
+    """Root endpoint for the gateway API."""
     return {"message": "Enter the cult... I mean, the API."}

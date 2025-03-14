@@ -27,9 +27,15 @@ class Scheduler:
         self.task_manager = task_manager
 
     def run(self):
+        """Run the scheduler by starting to consume tasks from the queue."""
         self.queue_manager.consume(self.process_task)
 
     def process_task(self, task: dict, ack: callable, nack: callable) -> None:
+        """Process a task by forwarding it to the model server and updating its status.
+
+        Every task picked up from the queue for the first time is expected to be in the PENDING
+        state. The task is then updated to SCHEDULED before being forwarded to the model server.
+        """
         task_uuid = task["uuid"]
         log.info(f"Processing task '{task_uuid}'")
 
@@ -41,6 +47,7 @@ class Scheduler:
         self.send_notification(task_obj)
 
     def route_task(self, task: dict) -> tuple[Response, str]:
+        """Route a task to the correct model server and return the response and error message."""
         log.info(f"Routing task '{task['uuid']}' to model server at {task['url']}")
         req = self._prepare_request(task)
         response = None
@@ -71,12 +78,14 @@ class Scheduler:
         ack: callable,
         nack: callable,
     ) -> Task:
+        """Handle the model server response on success or failure."""
         if response is None or response.status_code >= 400:
             return self._handle_task_failure(task_uuid, response, err_msg, nack)
         else:
             return self._handle_task_success(task_uuid, response, ack)
 
     def poll_task_status(self, task_uuid: str, tracking_id: str = None) -> dict:
+        """Poll tracking server for the status of a task and return the results once finalized."""
         while True:
             tracking_id = tracking_id or self.task_manager.get_task(task_uuid).tracking_id
             task = self.tracking_client.get_task(tracking_id)
@@ -92,11 +101,13 @@ class Scheduler:
                 time.sleep(5)
 
     def send_notification(self, task: Task):
+        """Send a notification to the user once a task is completed."""
         # FIXME: notify user if task is completed
         if task.status.is_final():
             log.info(f"Task '{task.uuid}' {task.status.value}: {task.result or task.error_message}")
 
     def _get_payload_from_refs(self, refs: list) -> str:
+        """Extract a request payload from the task references."""
         if len(refs) > 1:
             raise ValueError(f"Payload references can't contain more than 1 object: {refs}")
         elif len(refs) == 0:
@@ -106,6 +117,7 @@ class Scheduler:
         return self.task_object_store_manager.get_object(ref["key"]).decode()
 
     def _get_multipart_data_from_refs(self, refs: list) -> tuple:
+        """Extract multipart data and files from the task references."""
         multipart_data, files = {}, []
         for ref in refs:
             if "part=file" in ref["content_type"]:
@@ -116,6 +128,7 @@ class Scheduler:
         return multipart_data, files
 
     def _prepare_request(self, task: dict) -> dict:
+        """Prepare a request object from a task dictionary based on its content type."""
         payload, files = None, None
         content_type, _ = parse_content_type_header(task["content_type"])
         if content_type in ("text/plain", "application/x-ndjson", "application/json"):
@@ -140,6 +153,14 @@ class Scheduler:
     def _handle_task_failure(
         self, task_uuid: str, response: Response, err_msg: str, nack: callable
     ) -> Task:
+        """Handle empty or failed responses from the model server.
+
+        If the response is empty, the request most likely never reached the server, so it's marked
+        as failed and removed from the queue. If the response is not empty but the status code is
+        503, we can deduce that a training task is already running on the model server, therefore
+        the task is requeued for processing and its status is reset to PENDING. In any other case,
+        the task is marked as failed and removed from the queue.
+        """
         # FIXME: Add fine-grained error handling for different status codes
         if not response:
             nack(requeue=False)
@@ -168,6 +189,15 @@ class Scheduler:
             )
 
     def _handle_task_success(self, task_uuid: str, response: Response, ack: callable) -> Task:
+        """Handle successful responses from the model server.
+
+        Successful HTTP responses are either 202 (Accepted) for long-running tasks (e.g. training)
+        or 200 (OK) for short-running tasks (e.g. redaction). In the case of the latter, the
+        response body already contains the results, which are uploaded to the object store before
+        the task is marked as succeeded. For the former, the task is marked as running and the
+        tracking server is polled for the task status until it's completed. Once the task is
+        finalized, its results are uploaded to the object store and the task is marked as succeeded.
+        """
         ack()
         if response.status_code == 202:
             log.info(f"Task '{task_uuid}' accepted for processing, waiting for results")

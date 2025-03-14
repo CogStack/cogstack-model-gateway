@@ -91,6 +91,12 @@ class TrackingClient:
             return None
 
     def _find_unique_logged_model(self, tracking_id: str) -> str:
+        """Find a unique model artifact for a given tracking ID.
+
+        This method employs heuristics in an attempt to find a model artifact. It is not guaranteed
+        to return the correct model artifact, and should only be used as a fallback. It is
+        recommended that model artifact URIs are added as tags to the runs that generated them.
+        """
         artifacts = self._mlflow_client.list_artifacts(tracking_id)
 
         # check if an artifact called "model" exists

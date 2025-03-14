@@ -3,6 +3,10 @@ import os
 
 
 def configure_logging():
+    """Configure logging for the CogStack Model Gateway packages.
+
+    The logging level for each package can be set using the corresponding environment variable.
+    """
     parent_logger = logging.getLogger("cmg")
     parent_logger.setLevel(logging.DEBUG)
 

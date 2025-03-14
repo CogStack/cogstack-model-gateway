@@ -18,6 +18,7 @@ CMS_DOCKER_NETWORK = "cogstack-model-serve_cms"
 
 
 def get_running_models() -> list[dict]:
+    """Get a list of running containers corresponding to model servers."""
     client = docker.from_env()
     cms_project = os.getenv(CMS_PROJECT_ENV_VAR)
     if not cms_project:
@@ -36,12 +37,24 @@ def get_running_models() -> list[dict]:
 
 
 def run_model_container(model_name: str, model_uri: str, ttl: int):
+    """Run a Docker container for a model server.
+
+    The container is started with the `cogstack-modelserve` image as well as the specified model
+    name which is used as the Docker service name and the tracking server URI for the trained model
+    to be deployed. The new CogStack Model Serve instance is given labels to identify it as a model
+    server managed by the CogStack Model Gateway, with the specified TTL label determining its
+    expiration time. Apart from that, it's configured in the same way as the services included in
+    the CogStack Model Serve stack.
+    """
     client = docker.from_env()
     cms_project = os.getenv(CMS_PROJECT_ENV_VAR)
     if not cms_project:
         raise ValueError(f"Environment variable {CMS_PROJECT_ENV_VAR} is not set.")
 
     labels = {
+        # The project name is set by Docker when deploying CMS through its compose file. We have to
+        # set it explicitly here to ensure that model servers deployed through the gateway can be
+        # identified/listed/deleted in the same way as the ones deployed through Docker compose.
         PROJECT_NAME_LABEL: cms_project,
         IS_MODEL_LABEL: model_name,
         MODEL_URI_LABEL: model_uri,

@@ -29,6 +29,7 @@ class DatabaseManager:
         self.engine = create_engine(self.connection_url)
 
     def init_db(self):
+        """Initialize the database by creating all tables."""
         log.info("Initializing database")
         try:
             SQLModel.metadata.create_all(self.engine)
@@ -38,5 +39,6 @@ class DatabaseManager:
 
     @contextmanager
     def get_session(self):
+        """Get a database session."""
         with Session(self.engine) as session:
             yield session

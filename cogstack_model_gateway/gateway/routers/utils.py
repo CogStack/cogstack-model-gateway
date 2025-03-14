@@ -13,10 +13,12 @@ VALID_MODEL_DESCRIPTION = (
 
 
 def get_query_params(request: Request) -> dict[str, str]:
+    """Get query parameters from a request."""
     return dict(request.query_params)
 
 
 def get_content_type(content_type: Annotated[str, Header()]) -> str:
+    """Get the content type from the request headers."""
     parsed_content_type, _ = parse_content_type_header(content_type)
     return parsed_content_type
 
@@ -33,6 +35,7 @@ def validate_model_name(
         ),
     ],
 ) -> str:
+    """Validate the model name path parameter."""
     if not re.match(MODEL_NAME_REGEX, model_name):
         raise HTTPException(
             status_code=400,

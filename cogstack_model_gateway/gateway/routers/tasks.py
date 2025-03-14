@@ -13,6 +13,7 @@ router = APIRouter()
 
 @router.get("/tasks/", tags=["tasks"])
 async def get_tasks():
+    """List all tasks (not implemented)."""
     # FIXME: Implement authn/authz
     raise HTTPException(status_code=403, detail="Only admins can list tasks")
 
@@ -24,6 +25,11 @@ async def get_task_by_uuid(
     detail: bool = Query(False),
     download: bool = Query(False),
 ):
+    """Get a task by its UUID.
+
+    If `detail` is False, only the task UUID and status are returned. Otherwise, the full details
+    are included in the response (e.g. tracking ID, result reference, error message).
+    """
     tm: TaskManager = config.task_manager
     osm: ObjectStoreManager = config.results_object_store_manager
     task = tm.get_task(task_uuid)

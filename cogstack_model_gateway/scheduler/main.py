@@ -15,6 +15,7 @@ log = logging.getLogger("cmg.scheduler")
 def initialize_connections() -> (
     tuple[DatabaseManager, ObjectStoreManager, QueueManager, TaskManager]
 ):
+    """Initialize database, object store, queue, and task manager connections for the scheduler."""
     log.info("Initializing database and queue connections")
     config = load_config()
     dbm = DatabaseManager(
@@ -58,6 +59,7 @@ def initialize_connections() -> (
 
 
 def main():
+    """Run the scheduler service."""
     configure_logging()
     connections = initialize_connections()
 

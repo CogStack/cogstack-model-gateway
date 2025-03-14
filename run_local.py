@@ -23,6 +23,7 @@ class ServiceManager:
         self.processes: list[subprocess.Popen] = []
 
     def get_container_ip(self, container_name):
+        """Get the IP address of a Docker container by inspecting its network settings."""
         result = subprocess.run(
             ["docker", "inspect", "-f", DOCKER_NETWORK_IP_ADDRESS_FILTER, container_name],
             capture_output=True,
@@ -31,6 +32,7 @@ class ServiceManager:
         return result.stdout.strip()
 
     def start_services(self):
+        """Start the gateway, scheduler, and ripper services as subprocesses."""
         self.stop_services()
         print("Starting Gateway...")
         gateway = subprocess.Popen(
@@ -47,11 +49,13 @@ class ServiceManager:
         self.processes.append(ripper)
 
     def stop_services(self):
+        """Terminate all running services."""
         for process in self.processes:
             process.terminate()
         self.processes = []
 
     def cleanup(self):
+        """Stop all running services and remove Docker containers."""
         print("Stopping all services...")
         self.stop_services()
         subprocess.run(["docker", "compose", "-f", "docker-compose.yaml", "down"])
@@ -63,6 +67,7 @@ class EventHandler(FileSystemEventHandler):
         self.service_manager = service_manager
 
     def on_modified(self, event):
+        """Restart services when a Python file is modified."""
         if event.src_path.endswith(".py"):
             print("File change detected. Restarting services...")
             self.service_manager.start_services()

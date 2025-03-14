@@ -23,12 +23,21 @@ log = logging.getLogger("cmg.ripper")
 
 
 def stop_and_remove_container(container: Container):
+    """Stop and remove a Docker container."""
     log.info(f"Stopping and removing expired container: {container.name}")
     container.stop()
     container.remove()
 
 
 def purge_expired_containers():
+    """Run periodically and purge Docker containers that have exceeded their TTL.
+
+    List Docker containers and fetch the ones managed by the CogStack Model Gateway that correspond
+    to model servers according to their labels. For each container, check if it has a TTL label set
+    and if the current time exceeds the expiration time; if so, stop and remove the container
+    (containers without a TTL label or with a TTL value of -1 are skipped). Finally, sleep for the
+    specified interval before repeating the process.
+    """
     client = docker.from_env()
 
     while True:
@@ -60,6 +69,7 @@ def purge_expired_containers():
 
 
 def main():
+    """Run the ripper service."""
     configure_logging()
     purge_expired_containers()
 

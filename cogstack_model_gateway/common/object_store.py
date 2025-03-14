@@ -46,6 +46,7 @@ class ObjectStoreManager:
         self.create_bucket(self.default_bucket)
 
     def create_bucket(self, bucket_name: str) -> None:
+        """Create a bucket if it does not already exist."""
         log.info("Creating bucket '%s'", bucket_name)
         try:
             if not self.client.bucket_exists(bucket_name):
@@ -60,6 +61,7 @@ class ObjectStoreManager:
     def upload_object(
         self, file_data: bytes, filename: str, bucket_name: str = None, prefix: str = None
     ) -> str:
+        """Upload bytes as an object to the specified bucket."""
         if bucket_name and bucket_name != self.default_bucket:
             self.create_bucket(bucket_name)
         else:
@@ -75,6 +77,7 @@ class ObjectStoreManager:
         return object_key
 
     def get_object(self, object_key: str, bucket_name: str = None) -> bytes:
+        """Download object bytes from the specified bucket."""
         bucket_name = bucket_name if bucket_name else self.default_bucket
         log.info("Fetching object '%s' from bucket '%s'", object_key, bucket_name)
         return self.client.get_object(bucket_name, object_key).read()
@@ -82,5 +85,6 @@ class ObjectStoreManager:
     def get_object_url(
         self, object_key: str, bucket_name: str = None, expires: timedelta = timedelta(days=7)
     ) -> str:
+        """Get a presigned URL for the specified object."""
         bucket_name = bucket_name if bucket_name else self.default_bucket
         return self.client.presigned_get_object(bucket_name, object_key, expires=expires)
