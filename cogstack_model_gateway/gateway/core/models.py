@@ -17,12 +17,14 @@ CMS_PROJECT_ENV_VAR = "CMS_PROJECT_NAME"
 CMS_DOCKER_NETWORK = "cogstack-model-serve_cms"
 
 
-def get_running_models() -> list[dict]:
+def get_running_models(cms_project: str) -> list[dict]:
     """Get a list of running containers corresponding to model servers."""
     client = docker.from_env()
-    cms_project = os.getenv(CMS_PROJECT_ENV_VAR)
     if not cms_project:
-        raise ValueError(f"Environment variable {CMS_PROJECT_ENV_VAR} is not set.")
+        raise ValueError(
+            "CogStack ModelServe Docker Compose project name was not provided."
+            f" Please try setting the '{CMS_PROJECT_ENV_VAR}' environment variable."
+        )
 
     containers = client.containers.list(
         filters={
@@ -36,7 +38,7 @@ def get_running_models() -> list[dict]:
     ]
 
 
-def run_model_container(model_name: str, model_uri: str, ttl: int):
+def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: str) -> Container:
     """Run a Docker container for a model server.
 
     The container is started with the `cogstack-modelserve` image as well as the specified model
@@ -47,9 +49,11 @@ def run_model_container(model_name: str, model_uri: str, ttl: int):
     the CogStack Model Serve stack.
     """
     client = docker.from_env()
-    cms_project = os.getenv(CMS_PROJECT_ENV_VAR)
     if not cms_project:
-        raise ValueError(f"Environment variable {CMS_PROJECT_ENV_VAR} is not set.")
+        raise ValueError(
+            "CogStack ModelServe Docker Compose project name was not provided."
+            f" Please try setting the '{CMS_PROJECT_ENV_VAR}' environment variable."
+        )
 
     labels = {
         # The project name is set by Docker when deploying CMS through its compose file. We have to

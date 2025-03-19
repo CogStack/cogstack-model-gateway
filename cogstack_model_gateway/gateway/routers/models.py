@@ -101,6 +101,7 @@ router = APIRouter()
 
 @router.get("/models/", response_model=list[dict], tags=["models"])
 async def get_models(
+    config: Annotated[Config, Depends(get_config)],
     verbose: Annotated[
         bool | None, Query(description="Include model metadata from the tracking server")
     ] = False,
@@ -110,7 +111,7 @@ async def get_models(
     Metadata is only included if the `verbose` query parameter is set to `true` and a tracking URI
     is found for the model server.
     """
-    models = get_running_models()
+    models = get_running_models(config.cms.project_name)
     for model in models:
         if model["uri"] and verbose:
             if model_info := TrackingClient().get_model_metadata(model["uri"]):
@@ -138,6 +139,7 @@ async def get_model_info(model_name: str):
 
 @router.post("/models/{model_name}", response_model=dict, tags=["models"])
 async def deploy_model(
+    config: Annotated[Config, Depends(get_config)],
     model_name: Annotated[str, Depends(validate_model_name)],
     tracking_id: Annotated[
         str | None,
@@ -184,7 +186,7 @@ async def deploy_model(
                 status_code=404, detail=f"Model not found for tracking ID '{tracking_id}'."
             )
 
-    if any(model["name"] == model_name for model in get_running_models()):
+    if any(model["name"] == model_name for model in get_running_models(config.cms.project_name)):
         raise HTTPException(
             status_code=409,
             detail=(
@@ -194,7 +196,7 @@ async def deploy_model(
         )
 
     try:
-        container = run_model_container(model_name, model_uri, ttl)
+        container = run_model_container(model_name, model_uri, ttl, config.cms.project_name)
     except DockerException as e:
         log.error(f"Failed to deploy model '{model_name}': {str(e)}")
         raise HTTPException(

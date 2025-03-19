@@ -7,25 +7,30 @@ from dotenv import load_dotenv
 log = logging.getLogger("cmg.common")
 
 CONFIG_FILE = os.getenv("CONFIG_FILE", "config.json")
-ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX = "CMG_"
 ACCEPTED_ENVIRONMENT_VARIABLES = {
-    "CMG_DB_USER",
-    "CMG_DB_PASSWORD",
-    "CMG_DB_NAME",
-    "CMG_DB_HOST",
-    "CMG_DB_PORT",
-    "CMG_OBJECT_STORE_HOST",
-    "CMG_OBJECT_STORE_PORT",
-    "CMG_OBJECT_STORE_ACCESS_KEY",
-    "CMG_OBJECT_STORE_SECRET_KEY",
-    "CMG_OBJECT_STORE_BUCKET_TASKS",
-    "CMG_OBJECT_STORE_BUCKET_RESULTS",
-    "CMG_QUEUE_USER",
-    "CMG_QUEUE_PASSWORD",
-    "CMG_QUEUE_NAME",
-    "CMG_QUEUE_HOST",
-    "CMG_QUEUE_PORT",
-    "CMG_SCHEDULER_MAX_CONCURRENT_TASKS",
+    "cms": {
+        "CMS_PROJECT_NAME",
+        "CMS_HOST_URL",
+    },
+    "cmg": {
+        "CMG_DB_USER",
+        "CMG_DB_PASSWORD",
+        "CMG_DB_NAME",
+        "CMG_DB_HOST",
+        "CMG_DB_PORT",
+        "CMG_OBJECT_STORE_HOST",
+        "CMG_OBJECT_STORE_PORT",
+        "CMG_OBJECT_STORE_ACCESS_KEY",
+        "CMG_OBJECT_STORE_SECRET_KEY",
+        "CMG_OBJECT_STORE_BUCKET_TASKS",
+        "CMG_OBJECT_STORE_BUCKET_RESULTS",
+        "CMG_QUEUE_USER",
+        "CMG_QUEUE_PASSWORD",
+        "CMG_QUEUE_NAME",
+        "CMG_QUEUE_HOST",
+        "CMG_QUEUE_PORT",
+        "CMG_SCHEDULER_MAX_CONCURRENT_TASKS",
+    },
 }
 
 
@@ -87,11 +92,12 @@ def load_config() -> Config:
             raise
 
         load_dotenv()
-        config["env"] = {
-            var.replace(ACCEPTED_ENVIRONMENT_VARIABLE_PREFIX, "", 1).lower(): value
-            for var in ACCEPTED_ENVIRONMENT_VARIABLES
-            if (value := os.getenv(var))
-        }
+        for key, env_vars in ACCEPTED_ENVIRONMENT_VARIABLES.items():
+            config[key] = {
+                var.replace(f"{key.upper()}_", "", 1).lower(): value
+                for var in env_vars
+                if (value := os.getenv(var))
+            }
         log.info(f"Loaded config: {config}")
         _config_instance = Config(config)
     return _config_instance

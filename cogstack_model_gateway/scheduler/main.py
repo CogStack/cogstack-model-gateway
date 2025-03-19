@@ -19,37 +19,37 @@ def initialize_connections() -> (
     log.info("Initializing database and queue connections")
     config = load_config()
     dbm = DatabaseManager(
-        user=config.env.db_user,
-        password=config.env.db_password,
-        host=config.env.db_host,
-        port=config.env.db_port,
-        db_name=config.env.db_name,
+        user=config.cmg.db_user,
+        password=config.cmg.db_password,
+        host=config.cmg.db_host,
+        port=config.cmg.db_port,
+        db_name=config.cmg.db_name,
     )
     dbm.init_db()
 
     task_osm = ObjectStoreManager(
-        host=config.env.object_store_host,
-        port=config.env.object_store_port,
-        access_key=config.env.object_store_access_key,
-        secret_key=config.env.object_store_secret_key,
-        default_bucket=config.env.object_store_bucket_tasks,
+        host=config.cmg.object_store_host,
+        port=config.cmg.object_store_port,
+        access_key=config.cmg.object_store_access_key,
+        secret_key=config.cmg.object_store_secret_key,
+        default_bucket=config.cmg.object_store_bucket_tasks,
     )
 
     results_osm = ObjectStoreManager(
-        host=config.env.object_store_host,
-        port=config.env.object_store_port,
-        access_key=config.env.object_store_access_key,
-        secret_key=config.env.object_store_secret_key,
-        default_bucket=config.env.object_store_bucket_results,
+        host=config.cmg.object_store_host,
+        port=config.cmg.object_store_port,
+        access_key=config.cmg.object_store_access_key,
+        secret_key=config.cmg.object_store_secret_key,
+        default_bucket=config.cmg.object_store_bucket_results,
     )
 
     qm = QueueManager(
-        user=config.env.queue_user,
-        password=config.env.queue_password,
-        host=config.env.queue_host,
-        port=config.env.queue_port,
-        queue_name=config.env.queue_name,
-        max_concurrent_tasks=int(config.env.scheduler_max_concurrent_tasks),
+        user=config.cmg.queue_user,
+        password=config.cmg.queue_password,
+        host=config.cmg.queue_host,
+        port=config.cmg.queue_port,
+        queue_name=config.cmg.queue_name,
+        max_concurrent_tasks=int(config.cmg.scheduler_max_concurrent_tasks),
     )
     qm.init_queue()
 

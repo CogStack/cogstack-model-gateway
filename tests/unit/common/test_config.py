@@ -3,6 +3,7 @@ from unittest.mock import mock_open, patch
 from cogstack_model_gateway.common.config import Config, get_config, load_config
 
 TEST_ENV_VARS = {
+    "CMS_HOST_URL": "http://localhost:8000",
     "CMG_DB_USER": "test_user",
     "CMG_NOT_ACCEPTED_VAR": "test_value",
     "OTHER_NOT_ACCEPTED_VAR": "other_value",
@@ -79,10 +80,15 @@ def test_load_config(mock_load_dotenv, mock_getenv, mock_open):
     assert isinstance(config, Config)
     assert config.key == "value"
 
-    assert "env" in config
-    assert len(config.env) == 1
-    assert "db_user" in config.env
-    assert config.env.db_user == "test_user"
+    assert "cmg" in config
+    assert len(config.cmg) == 1
+    assert "db_user" in config.cmg
+    assert config.cmg.db_user == "test_user"
+
+    assert "cms" in config
+    assert len(config.cms) == 1
+    assert "host_url" in config.cms
+    assert config.cms.host_url == "http://localhost:8000"
 
 
 @patch("builtins.open", new_callable=mock_open, read_data='{"key": "value"}')
@@ -93,7 +99,7 @@ def test_load_config_no_env_vars(mock_load_dotenv, mock_getenv, mock_open):
     config = load_config()
     assert isinstance(config, Config)
     assert config.key == "value"
-    assert not config.env
+    assert not config.cmg and not config.cms
     config.set("nested", {"inner_key": "inner_value"})
     assert isinstance(config.nested, Config)
     assert config.nested.inner_key == "inner_value"
