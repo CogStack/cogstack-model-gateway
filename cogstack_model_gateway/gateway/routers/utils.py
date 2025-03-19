@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Header, HTTPException, Path, Request
 
+from cogstack_model_gateway.common.config import get_config
 from cogstack_model_gateway.common.utils import parse_content_type_header
 
 MODEL_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"
@@ -42,3 +43,13 @@ def validate_model_name(
             detail=f"Invalid model name. {VALID_MODEL_DESCRIPTION}",
         )
     return model_name
+
+
+def get_cms_url(model_name: str, endpoint: str = None) -> str:
+    """Get the URL of a CogStack Model Serve instance endpoint."""
+    config = get_config()
+    host_url = config.cms.host_url.rstrip("/") if config.cms.host_url else ""
+    server_port = config.cms.server_port
+    base_url = f"{host_url}/{model_name}" if host_url else f"http://{model_name}:{server_port}"
+    endpoint = endpoint.lstrip("/") if endpoint else ""
+    return f"{base_url}/{endpoint}" if endpoint else base_url
