@@ -9,27 +9,28 @@ log = logging.getLogger("cmg.common")
 CONFIG_FILE = os.getenv("CONFIG_FILE", "config.json")
 ACCEPTED_ENVIRONMENT_VARIABLES = {
     "cms": {
-        "CMS_PROJECT_NAME",
-        "CMS_HOST_URL",
+        "CMS_HOST_URL": "",
+        "CMS_PROJECT_NAME": "cms",
+        "CMS_SERVER_PORT": "8000",
     },
     "cmg": {
-        "CMG_DB_USER",
-        "CMG_DB_PASSWORD",
-        "CMG_DB_NAME",
-        "CMG_DB_HOST",
-        "CMG_DB_PORT",
-        "CMG_OBJECT_STORE_HOST",
-        "CMG_OBJECT_STORE_PORT",
-        "CMG_OBJECT_STORE_ACCESS_KEY",
-        "CMG_OBJECT_STORE_SECRET_KEY",
-        "CMG_OBJECT_STORE_BUCKET_TASKS",
-        "CMG_OBJECT_STORE_BUCKET_RESULTS",
-        "CMG_QUEUE_USER",
-        "CMG_QUEUE_PASSWORD",
-        "CMG_QUEUE_NAME",
-        "CMG_QUEUE_HOST",
-        "CMG_QUEUE_PORT",
-        "CMG_SCHEDULER_MAX_CONCURRENT_TASKS",
+        "CMG_DB_USER": "admin",
+        "CMG_DB_PASSWORD": "admin",
+        "CMG_DB_NAME": "cmg_tasks",
+        "CMG_DB_HOST": "postgres",
+        "CMG_DB_PORT": "5432",
+        "CMG_OBJECT_STORE_HOST": "minio",
+        "CMG_OBJECT_STORE_PORT": "9000",
+        "CMG_OBJECT_STORE_ACCESS_KEY": "admin",
+        "CMG_OBJECT_STORE_SECRET_KEY": "admin123",
+        "CMG_OBJECT_STORE_BUCKET_TASKS": "cmg-tasks",
+        "CMG_OBJECT_STORE_BUCKET_RESULTS": "cmg-results",
+        "CMG_QUEUE_USER": "admin",
+        "CMG_QUEUE_PASSWORD": "admin",
+        "CMG_QUEUE_NAME": "cmg_tasks",
+        "CMG_QUEUE_HOST": "rabbitmq",
+        "CMG_QUEUE_PORT": "5672",
+        "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
     },
 }
 
@@ -85,8 +86,8 @@ def load_config() -> Config:
             with open(CONFIG_FILE) as f:
                 config = json.load(f)
         except FileNotFoundError:
-            log.error(f"Config file {CONFIG_FILE} not found.")
-            raise
+            log.warning(f"Config file {CONFIG_FILE} not found.")
+            config = {}
         except json.JSONDecodeError:
             log.error(f"Config file {CONFIG_FILE} is not a valid JSON file.")
             raise
@@ -94,9 +95,8 @@ def load_config() -> Config:
         load_dotenv()
         for key, env_vars in ACCEPTED_ENVIRONMENT_VARIABLES.items():
             config[key] = {
-                var.replace(f"{key.upper()}_", "", 1).lower(): value
-                for var in env_vars
-                if (value := os.getenv(var))
+                var.replace(f"{key.upper()}_", "", 1).lower(): os.getenv(var, default)
+                for var, default in env_vars.items()
             }
         log.info(f"Loaded config: {config}")
         _config_instance = Config(config)

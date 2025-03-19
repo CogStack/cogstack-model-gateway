@@ -1,6 +1,11 @@
 from unittest.mock import mock_open, patch
 
-from cogstack_model_gateway.common.config import Config, get_config, load_config
+from cogstack_model_gateway.common.config import (
+    ACCEPTED_ENVIRONMENT_VARIABLES,
+    Config,
+    get_config,
+    load_config,
+)
 
 TEST_ENV_VARS = {
     "CMS_HOST_URL": "http://localhost:8000",
@@ -81,12 +86,12 @@ def test_load_config(mock_load_dotenv, mock_getenv, mock_open):
     assert config.key == "value"
 
     assert "cmg" in config
-    assert len(config.cmg) == 1
+    assert len(config.cmg) == len(ACCEPTED_ENVIRONMENT_VARIABLES["cmg"])
     assert "db_user" in config.cmg
     assert config.cmg.db_user == "test_user"
 
     assert "cms" in config
-    assert len(config.cms) == 1
+    assert len(config.cms) == len(ACCEPTED_ENVIRONMENT_VARIABLES["cms"])
     assert "host_url" in config.cms
     assert config.cms.host_url == "http://localhost:8000"
 
@@ -99,7 +104,9 @@ def test_load_config_no_env_vars(mock_load_dotenv, mock_getenv, mock_open):
     config = load_config()
     assert isinstance(config, Config)
     assert config.key == "value"
-    assert not config.cmg and not config.cms
+    assert "cmg" in config and "cms" in config
+    assert len(config.cmg) == len(ACCEPTED_ENVIRONMENT_VARIABLES["cmg"])
+    assert len(config.cms) == len(ACCEPTED_ENVIRONMENT_VARIABLES["cms"])
     config.set("nested", {"inner_key": "inner_value"})
     assert isinstance(config.nested, Config)
     assert config.nested.inner_key == "inner_value"
