@@ -53,6 +53,7 @@ class Scheduler:
         response = None
         try:
             log.debug(f"Request: {req}")
+            # FIXME: Enable SSL verification when certificates are properly set up
             response = request(
                 method=req["method"],
                 url=req["url"],
@@ -60,6 +61,7 @@ class Scheduler:
                 params=req["params"],
                 data=req["data"],
                 files=req["files"],
+                verify=False,
             )
             log.debug(f"Response: {response.text}")
             response.raise_for_status()

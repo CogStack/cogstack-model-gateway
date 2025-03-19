@@ -15,6 +15,7 @@ from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
 from cogstack_model_gateway.gateway.routers.utils import (
+    get_cms_url,
     get_content_type,
     get_query_params,
     validate_model_name,
@@ -122,7 +123,8 @@ async def get_models(
 @router.get("/models/{model_name}/info", response_model=dict, tags=["models"])
 async def get_model_info(model_name: str):
     """Get information about a running model server through its `/info` API."""
-    response = requests.get(f"http://{model_name}:8000/info")
+    # FIXME: Enable SSL verification when certificates are properly set up
+    response = requests.get(get_cms_url(model_name, "info"), verify=False)
     if response.status_code == 404:
         raise HTTPException(
             status_code=404,
@@ -295,7 +297,7 @@ async def execute_task(
     task = {
         "uuid": task_uuid,
         "method": endpoint["method"],
-        "url": f"http://{model_name}:8000{endpoint['url']}",
+        "url": get_cms_url(model_name, endpoint["url"]),
         "content_type": content_type,
         "params": query_params,
         "refs": references,
