@@ -1,6 +1,11 @@
 import logging
 import os
 
+COMMON_LOG_LEVEL_VAR = "CMG_COMMON_LOG_LEVEL"
+GATEWAY_LOG_LEVEL_VAR = "CMG_GATEWAY_LOG_LEVEL"
+RIPPER_LOG_LEVEL_VAR = "CMG_RIPPER_LOG_LEVEL"
+SCHEDULER_LOG_LEVEL_VAR = "CMG_SCHEDULER_LOG_LEVEL"
+
 
 def configure_logging():
     """Configure logging for the CogStack Model Gateway packages.
@@ -16,7 +21,7 @@ def configure_logging():
         handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
         parent_logger.addHandler(handler)
 
-    logging.getLogger("cmg.common").setLevel(os.getenv("CMG_COMMON_LOG_LEVEL", logging.INFO))
-    logging.getLogger("cmg.gateway").setLevel(os.getenv("CMG_GATEWAY_LOG_LEVEL", logging.INFO))
-    logging.getLogger("cmg.ripper").setLevel(os.getenv("CMG_RIPPER_LOG_LEVEL", logging.INFO))
-    logging.getLogger("cmg.scheduler").setLevel(os.getenv("CMG_SCHEDULER_LOG_LEVEL", logging.INFO))
+    logging.getLogger("cmg.common").setLevel(os.getenv(COMMON_LOG_LEVEL_VAR) or logging.INFO)
+    logging.getLogger("cmg.gateway").setLevel(os.getenv(GATEWAY_LOG_LEVEL_VAR) or logging.INFO)
+    logging.getLogger("cmg.ripper").setLevel(os.getenv(RIPPER_LOG_LEVEL_VAR) or logging.INFO)
+    logging.getLogger("cmg.scheduler").setLevel(os.getenv(SCHEDULER_LOG_LEVEL_VAR) or logging.INFO)
