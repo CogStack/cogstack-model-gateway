@@ -100,7 +100,12 @@ log = logging.getLogger("cmg.gateway")
 router = APIRouter()
 
 
-@router.get("/models/", response_model=list[dict], tags=["models"])
+@router.get(
+    "/models/",
+    response_model=list[dict],
+    tags=["models"],
+    name="List running CogStack Model Serve instances with metadata from the tracking server",
+)
 async def get_models(
     config: Annotated[Config, Depends(get_config)],
     verbose: Annotated[
@@ -120,7 +125,12 @@ async def get_models(
     return models
 
 
-@router.get("/models/{model_name}/info", response_model=dict, tags=["models"])
+@router.get(
+    "/models/{model_name}/info",
+    response_model=dict,
+    tags=["models"],
+    name="Get information about a running CogStack Model Serve instance",
+)
 async def get_model_info(model_name: str):
     """Get information about a running model server through its `/info` API."""
     # FIXME: Enable SSL verification when certificates are properly set up
@@ -139,7 +149,12 @@ async def get_model_info(model_name: str):
     return response.json()
 
 
-@router.post("/models/{model_name}", response_model=dict, tags=["models"])
+@router.post(
+    "/models/{model_name}",
+    response_model=dict,
+    tags=["models"],
+    name="Deploy a CogStack Model Serve instance with a given model URI or tracking ID",
+)
 async def deploy_model(
     config: Annotated[Config, Depends(get_config)],
     model_name: Annotated[str, Depends(validate_model_name)],
@@ -215,7 +230,12 @@ async def deploy_model(
     }
 
 
-@router.post("/models/{model_name}/tasks/{task}", response_model=dict, tags=["models"])
+@router.post(
+    "/models/{model_name}/tasks/{task}",
+    response_model=dict,
+    tags=["models"],
+    name="Schedule a task for execution on a running CogStack Model Serve instance",
+)
 async def execute_task(
     model_name: str,
     task: str,

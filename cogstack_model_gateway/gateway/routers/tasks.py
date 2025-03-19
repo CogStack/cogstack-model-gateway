@@ -11,14 +11,22 @@ from cogstack_model_gateway.common.tasks import TaskManager
 router = APIRouter()
 
 
-@router.get("/tasks/", tags=["tasks"])
+@router.get(
+    "/tasks/",
+    tags=["tasks"],
+    name="List all tasks created through the CogStack Model Gateway",
+)
 async def get_tasks():
     """List all tasks (not implemented)."""
     # FIXME: Implement authn/authz
     raise HTTPException(status_code=403, detail="Only admins can list tasks")
 
 
-@router.get("/tasks/{task_uuid}", tags=["tasks"])
+@router.get(
+    "/tasks/{task_uuid}",
+    tags=["tasks"],
+    name="Get a task created through the CogStack Model Gateway by its UUID",
+)
 async def get_task_by_uuid(
     task_uuid: str,
     config: Annotated[Config, Depends(get_config)],
