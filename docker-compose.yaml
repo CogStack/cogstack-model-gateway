@@ -102,10 +102,10 @@ services:
       - CMS_PROJECT_NAME=$CMS_PROJECT_NAME
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost
+      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
+      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
     expose:
@@ -151,10 +151,10 @@ services:
       - MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost
+      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
+      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
     depends_on:
@@ -179,10 +179,10 @@ services:
       - CMG_RIPPER_INTERVAL=$CMG_RIPPER_INTERVAL
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost
+      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost
+      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
     volumes:
