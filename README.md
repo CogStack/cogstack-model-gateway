@@ -65,10 +65,10 @@ not allowed in MinIO bucket names). The configuration should be saved in a `.env
 directory of the project before running Docker Compose (or sourced directly in the shell):
 
 ```shell
-CMS_PROJECT_NAME=cms
+CMS_PROJECT_NAME=<cms-docker-compose-project-name>  # e.g. cms
 
 # (optional) Useful when running CMS behind a proxy
-CMS_HOST_URL=https://localhost/cms
+CMS_HOST_URL=https://<proxy-docker-service-name>/cms  # e.g. https://proxy/cms
 
 CMG_SCHEDULER_MAX_CONCURRENT_TASKS=1
 
@@ -94,8 +94,8 @@ CMG_OBJECT_STORE_PORT=9000
 CMG_OBJECT_STORE_BUCKET_TASKS=cmg-tasks
 CMG_OBJECT_STORE_BUCKET_RESULTS=cmg-results
 
-# MLflow
-MLFLOW_TRACKING_URI=http://mlflow-ui:5000  # Use container IP when running CMG locally
+# MLflow (use container IP when running locally)
+MLFLOW_TRACKING_URI=http://<mlflow-docker-service-name>:<mlflow-port>  # e.g. http://mlflow-ui:5000
 ```
 
 To install the CogStack Model Gateway, clone the repository and run `docker compose` inside the root
