@@ -99,10 +99,11 @@ MLFLOW_TRACKING_URI=http://mlflow-ui:5000  # Use container IP when running CMG l
 ```
 
 To install the CogStack Model Gateway, clone the repository and run `docker compose` inside the root
-directory:
+directory. It is recommended to set the `CMG_COMMIT_SHA` environment variable to the current commit
+hash which will be added as a label to all containers for easier tracking in production:
 
 ```shell
-docker compose -f docker-compose.yaml up
+CMG_COMMIT_SHA=$(git rev-parse HEAD) docker compose -f docker-compose.yaml up
 ```
 
 This will spin up the following services:

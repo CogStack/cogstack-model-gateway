@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:17.2
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
       POSTGRES_USER: $CMG_DB_USER
       POSTGRES_PASSWORD: $CMG_DB_PASSWORD
@@ -28,6 +30,8 @@ services:
   minio:
     image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
       - MINIO_ROOT_USER=$CMG_OBJECT_STORE_ACCESS_KEY
       - MINIO_ROOT_PASSWORD=$CMG_OBJECT_STORE_SECRET_KEY
@@ -53,6 +57,8 @@ services:
   rabbitmq:
     image: rabbitmq:4.0.4-management-alpine
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
       - RABBITMQ_DEFAULT_USER=$CMG_QUEUE_USER
       - RABBITMQ_DEFAULT_PASS=$CMG_QUEUE_PASSWORD
@@ -74,6 +80,8 @@ services:
   gateway:
     image: cogstacksystems/cogstack-model-gateway:latest
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
@@ -120,6 +128,8 @@ services:
   scheduler:
     image: cogstacksystems/cogstack-model-gateway-scheduler:latest
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
@@ -161,6 +171,8 @@ services:
   ripper:
     image: cogstacksystems/cogstack-model-gateway-ripper:latest
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
       - CMG_COMMON_LOG_LEVEL=$CMG_COMMON_LOG_LEVEL
       - CMG_RIPPER_LOG_LEVEL=$CMG_RIPPER_LOG_LEVEL
@@ -179,6 +191,8 @@ services:
   pgadmin:
     image: dpage/pgadmin4:8.13.0
     restart: always
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     profiles:
       - debug
     user: root
