@@ -369,7 +369,7 @@ def verify_results_match_api_info(client: TestClient, task: Task, result: bytes)
     assert response_json["tracking_id"] == task.tracking_id
 
     # Download results and verify they match the provided ones
-    download_results = client.get(f"/tasks/{task.uuid}", params={"detail": True, "download": True})
+    download_results = client.get(f"/tasks/{task.uuid}", params={"download": True})
     assert download_results.status_code == 200
     assert download_results.content == result
 

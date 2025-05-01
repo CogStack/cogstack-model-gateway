@@ -35,8 +35,11 @@ async def get_task_by_uuid(
 ):
     """Get a task by its UUID.
 
-    If `detail` is False, only the task UUID and status are returned. Otherwise, the full details
-    are included in the response (e.g. tracking ID, result reference, error message).
+    This endpoint retrieves a task created through the CogStack Model Gateway by its UUID. If
+    `download` is True, the result of the task is returned as a downloadable file. If not, the task
+    status with optional details is returned in JSON format: if `detail` is False, only the task
+    UUID and status are returned. Otherwise, the full details are included in the response (e.g.
+    tracking ID, result reference, error message).
     """
     tm: TaskManager = config.task_manager
     osm: ObjectStoreManager = config.results_object_store_manager
@@ -44,14 +47,15 @@ async def get_task_by_uuid(
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task '{task_uuid}' not found")
 
-    if not detail:
-        return {"uuid": task.uuid, "status": task.status}
-
     if download and task.result:
         return StreamingResponse(
             io.BytesIO(osm.get_object(task.result)),
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f"attachment; filename={task.result}"},
+            headers={
+                "Content-Disposition": f"attachment; filename={task.result}",
+                "X-Task-UUID": task.uuid,
+                "X-Task-Status": task.status,
+            },
         )
 
-    return task
+    return task if detail else {"uuid": task.uuid, "status": task.status}
