@@ -78,7 +78,7 @@ services:
       retries: 3
 
   gateway:
-    image: cogstacksystems/cogstack-model-gateway:latest
+    image: cogstacksystems/cogstack-model-gateway:${CMG_IMAGE_TAG:-latest}
     restart: always
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
@@ -126,7 +126,7 @@ services:
       - cogstack-model-serve_cms
 
   scheduler:
-    image: cogstacksystems/cogstack-model-gateway-scheduler:latest
+    image: cogstacksystems/cogstack-model-gateway-scheduler:${CMG_IMAGE_TAG:-latest}
     restart: always
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
@@ -169,7 +169,7 @@ services:
       - cogstack-model-serve_cms
 
   ripper:
-    image: cogstacksystems/cogstack-model-gateway-ripper:latest
+    image: cogstacksystems/cogstack-model-gateway-ripper:${CMG_IMAGE_TAG:-latest}
     restart: always
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
