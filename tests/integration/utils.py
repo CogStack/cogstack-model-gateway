@@ -171,6 +171,7 @@ def configure_environment(
         "CMG_OBJECT_STORE_BUCKET_RESULTS": "test-results",
         "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
         "CMS_PROJECT_NAME": COGSTACK_MODEL_SERVE_COMPOSE_PROJECT_NAME,
+        "CMS_HOST_URL": "",  # Override potential local settings pointing to a proxy
         **(extras or {}),
     }
     log.debug(env)
