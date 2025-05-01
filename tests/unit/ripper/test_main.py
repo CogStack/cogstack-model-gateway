@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,7 +30,7 @@ def test_purge_expired_containers(mock_sleep, mock_docker):
         IS_MODEL_LABEL: "test_model",
         TTL_LABEL: "10",
     }
-    mock_container.attrs = {"Created": f"{(datetime.now() - timedelta(seconds=20)).isoformat()}Z"}
+    mock_container.attrs = {"Created": f"{(datetime.now(UTC) - timedelta(seconds=20)).isoformat()}"}
 
     mock_client = MagicMock()
     mock_client.containers.list.return_value = [mock_container]
