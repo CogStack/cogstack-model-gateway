@@ -111,7 +111,7 @@ services:
     expose:
       - 8000
     ports:
-      - 8888:8000
+      - "${CMG_HOST_PORT:-8888}:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
