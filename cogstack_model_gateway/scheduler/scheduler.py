@@ -3,6 +3,11 @@ import time
 
 from requests import Response, request
 
+from cogstack_model_gateway.common.exceptions import (
+    retry_if_connection_error,
+    retry_if_rate_limited,
+    retry_if_timeout_error,
+)
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
@@ -46,25 +51,33 @@ class Scheduler:
         task_obj = self.handle_server_response(task_uuid, res, err_msg, ack, nack)
         self.send_notification(task_obj)
 
+    @retry_if_rate_limited
+    @retry_if_connection_error
+    @retry_if_timeout_error
+    def _send_request_with_retries(self, req: dict) -> Response:
+        """Send a request to the model server with retries for potentially transient errors."""
+        log.debug(f"Request: {req}")
+        # FIXME: Enable SSL verification when certificates are properly set up
+        response = request(
+            method=req["method"],
+            url=req["url"],
+            headers=req["headers"],
+            params=req["params"],
+            data=req["data"],
+            files=req["files"],
+            verify=False,
+        )
+        log.debug(f"Response: {response.text}")
+        response.raise_for_status()
+        return response
+
     def route_task(self, task: dict) -> tuple[Response, str]:
         """Route a task to the correct model server and return the response and error message."""
         log.info(f"Routing task '{task['uuid']}' to model server at {task['url']}")
         req = self._prepare_request(task)
         response = None
         try:
-            log.debug(f"Request: {req}")
-            # FIXME: Enable SSL verification when certificates are properly set up
-            response = request(
-                method=req["method"],
-                url=req["url"],
-                headers=req["headers"],
-                params=req["params"],
-                data=req["data"],
-                files=req["files"],
-                verify=False,
-            )
-            log.debug(f"Response: {response.text}")
-            response.raise_for_status()
+            response = self._send_request_with_retries(req)
             log.info(f"Task '{task['uuid']}' forwarded successfully to {task['url']}")
             return response, None
         except Exception as e:
