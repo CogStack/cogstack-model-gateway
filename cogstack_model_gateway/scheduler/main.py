@@ -12,9 +12,9 @@ from cogstack_model_gateway.scheduler.scheduler import Scheduler
 log = logging.getLogger("cmg.scheduler")
 
 
-def initialize_connections() -> (
-    tuple[DatabaseManager, ObjectStoreManager, QueueManager, TaskManager]
-):
+def initialize_connections() -> tuple[
+    DatabaseManager, ObjectStoreManager, QueueManager, TaskManager
+]:
     """Initialize database, object store, queue, and task manager connections for the scheduler."""
     log.info("Initializing database and queue connections")
     config = load_config()
@@ -60,6 +60,10 @@ def initialize_connections() -> (
 
 def main():
     """Run the scheduler service."""
+    import urllib3
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
     configure_logging()
     connections = initialize_connections()
 
