@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import urllib3
 from fastapi import FastAPI
 
 from cogstack_model_gateway.common.config import load_config
@@ -65,6 +66,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(models.router)
