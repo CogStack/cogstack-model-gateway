@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
-from cogstack_model_gateway.common.tasks import Status, TaskManager
+from cogstack_model_gateway.common.tasks import Status, TaskManager, UnexpectedStatusError
 
 
 @pytest.fixture
@@ -79,8 +79,10 @@ def test_update_task(task_manager: TaskManager) -> None:
 def test_update_task_with_incorrect_expected_status(task_manager: TaskManager) -> None:
     """Test that updating a task with incorrect expected status raises an error."""
     task_uuid = task_manager.create_task(status=Status.PENDING)
-    with pytest.raises(ValueError, match="Status of retrieved task"):
+    with pytest.raises(UnexpectedStatusError, match="Unexpected status") as exc_info:
         task_manager.update_task(task_uuid, status=Status.RUNNING, expected_status=Status.SUCCEEDED)
+    assert exc_info.value.task_uuid == task_uuid
+    assert exc_info.value.status == Status.PENDING.value
 
 
 def test_update_nonexistent_task(task_manager: TaskManager) -> None:

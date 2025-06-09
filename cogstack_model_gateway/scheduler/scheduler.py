@@ -10,7 +10,7 @@ from cogstack_model_gateway.common.exceptions import (
 )
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
-from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
+from cogstack_model_gateway.common.tasks import Status, Task, TaskManager, UnexpectedStatusError
 from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.common.utils import parse_content_type_header
 
@@ -44,12 +44,32 @@ class Scheduler:
         task_uuid = task["uuid"]
         log.info(f"Processing task '{task_uuid}'")
 
-        self.task_manager.update_task(
-            task_uuid, status=Status.SCHEDULED, expected_status=Status.PENDING
-        )
-        res, err_msg = self.route_task(task)
-        task_obj = self.handle_server_response(task_uuid, res, err_msg, ack, nack)
-        self.send_notification(task_obj)
+        try:
+            self.task_manager.update_task(
+                task_uuid, status=Status.SCHEDULED, expected_status=Status.PENDING
+            )
+        except UnexpectedStatusError as e:
+            # Log a warning if a completed task is being reprocessed (we should never land here)
+            # and make sure it's removed from the queue
+            if e.status in {Status.SUCCEEDED, Status.FAILED}:
+                log.warning(f"Task '{task_uuid}' is already completed with status '{e.status}'")
+                ack()
+                return
+            else:
+                log.error(f"Skipping task '{task_uuid}' (expected PENDING state): {e}")
+                nack(requeue=False)
+                return
+
+        try:
+            res, err_msg = self.route_task(task)
+            task_obj = self.handle_server_response(task_uuid, res, err_msg, ack, nack)
+            self.send_notification(task_obj)
+        except Exception as e:
+            err_msg = f"Unexpected error while processing task '{task_uuid}': {e}"
+            log.error(err_msg)
+            nack(requeue=False)
+            self.task_manager.update_task(task_uuid, status=Status.FAILED, error_message=err_msg)
+            return
 
     @retry_if_rate_limited
     @retry_if_connection_error

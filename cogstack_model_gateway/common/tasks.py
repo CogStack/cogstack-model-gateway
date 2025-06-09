@@ -23,6 +23,15 @@ class Status(str, Enum):
         return self in {self.SUCCEEDED, self.FAILED}
 
 
+class UnexpectedStatusError(Exception):
+    """Exception raised when an unexpected status is encountered."""
+
+    def __init__(self, task_uuid: str, status: str):
+        super().__init__(f"Unexpected status '{status}' for task '{task_uuid}'")
+        self.task_uuid = task_uuid
+        self.status = status
+
+
 class Task(SQLModel, table=True):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     status: Status = Field(default=Status.PENDING)
@@ -86,10 +95,7 @@ class TaskManager:
             original_status = task.status
             if status:
                 if expected_status and task.status != expected_status:
-                    raise ValueError(
-                        f"Status of retrieved task '{task_uuid}' is '{task.status.value}', expected"
-                        f" '{expected_status.value}'"
-                    )
+                    raise UnexpectedStatusError(task_uuid, task.status.value)
                 task.status = status
             if tracking_id:
                 task.tracking_id = tracking_id

@@ -141,7 +141,7 @@ class QueueManager:
                     process_fn(task, ack, nack)
                 except Exception as e:
                     log.error("Error processing task '%s': %s", task["uuid"], e)
-                    nack()
+                    nack(requeue=False)
 
         t = threading.Thread(target=_process_threadsafe)
         t.start()
