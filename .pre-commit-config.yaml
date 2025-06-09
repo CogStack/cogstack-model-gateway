@@ -15,14 +15,14 @@ repos:
       - --maxkb=50000
   - id: check-json
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.11.7
+  rev: v0.11.13
   hooks:
     - id: ruff
       entry: poetry run ruff check --force-exclude --fix
     - id: ruff-format
       entry: poetry run ruff format --force-exclude
 -   repo: https://github.com/python-poetry/poetry
-    rev: 2.1.2
+    rev: 2.1.3
     hooks:
     -   id: poetry-check
     -   id: poetry-lock
