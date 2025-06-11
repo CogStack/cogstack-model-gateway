@@ -3,7 +3,7 @@ name = "cogstack-model-gateway"
 version = "0.1.0"
 description = "A Gateway for accessing Cogstack ModelServe instances"
 authors = ["Phoevos Kalemkeris <phoevos.kalemkeris@ucl.ac.uk>"]
-license = "Elastic License 2.0"
+license = "Apache License 2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
