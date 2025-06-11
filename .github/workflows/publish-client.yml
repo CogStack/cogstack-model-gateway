@@ -1,0 +1,28 @@
+name: Publish Python Client to PyPI
+
+on:
+  workflow_run:
+    workflows:
+      - "Python tests"
+    types:
+      - completed
+    paths:
+      - "client/**"
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build and publish to pypi
+        uses: JRubics/poetry-publish@v2.1
+        with:
+          pypi_token: ${{ secrets.PYPI_API_TOKEN }}
