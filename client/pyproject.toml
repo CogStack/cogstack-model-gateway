@@ -1,0 +1,30 @@
+[project]
+name = "cogstack-model-gateway-client"
+description = "A Python client for the CogStack Model Gateway"
+authors = [
+    { name = "Phoevos Kalemkeris", email = "phoevos.kalemkeris@ucl.ac.uk" },
+]
+license = { text = "Apache License 2.0" }
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+]
+
+[project.urls]
+homepage = "https://github.com/CogStack/cogstack-model-gateway"
+repository = "https://github.com/CogStack/cogstack-model-gateway"
+documentation = "https://github.com/CogStack/cogstack-model-gateway/tree/main/client/README.md"
+"Bug Tracker" = "https://github.com/CogStack/cogstack-model-gateway/issues"
+
+[tool.poetry]
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+httpx = "^0.28.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
