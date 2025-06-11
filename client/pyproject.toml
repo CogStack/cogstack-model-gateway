@@ -12,6 +12,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Intended Audience :: Developers",
 ]
+dynamic = [ "version" ]
+
 
 [project.urls]
 homepage = "https://github.com/CogStack/cogstack-model-gateway"
@@ -20,11 +22,17 @@ documentation = "https://github.com/CogStack/cogstack-model-gateway/tree/main/cl
 "Bug Tracker" = "https://github.com/CogStack/cogstack-model-gateway/issues"
 
 [tool.poetry]
-version = "0.1.0"
+version = "0.0.0"
 
 [tool.poetry.dependencies]
 httpx = "^0.28.1"
 
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
+
+[tool.poetry-dynamic-versioning]
+enable = true
+
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=2.0.0,<3.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"

@@ -395,7 +395,7 @@ files = [
 
 [[package]]
 name = "cogstack-model-gateway-client"
-version = "0.1.0"
+version = "0.0.0"
 description = "A Python client for the CogStack Model Gateway"
 optional = false
 python-versions = ">=3.12"
