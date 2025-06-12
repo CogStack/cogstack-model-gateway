@@ -5,7 +5,10 @@ description = "A Gateway for accessing Cogstack ModelServe instances"
 authors = ["Phoevos Kalemkeris <phoevos.kalemkeris@ucl.ac.uk>"]
 license = "Apache License 2.0"
 readme = "README.md"
-packages = [{include = "cogstack_model_gateway_client", from = "client"}]
+packages = [
+    {include = "cogstack_model_gateway"},
+    {include = "cogstack_model_gateway_client", from = "client"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
