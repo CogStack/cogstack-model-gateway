@@ -307,7 +307,7 @@ def verify_task_submitted_successfully(task_uuid: str, tm: TaskManager):
 def wait_for_task_completion(task_uuid: str, tm: TaskManager, expected_status: Status) -> Task:
     """Wait for a task to complete and verify its results."""
     while (task := tm.get_task(task_uuid)).status != expected_status:
-        if task.status in [Status.FAILED, Status.SUCCEEDED, Status.REQUEUED]:
+        if task.status.is_final():
             raise ValueError(f"Task '{task_uuid}' completed with unexpected status '{task.status}'")
 
     # Verify task results

@@ -10,7 +10,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from cogstack_model_gateway.common.config import Config, get_config
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
-from cogstack_model_gateway.common.tasks import Status, TaskManager
+from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
@@ -276,7 +276,13 @@ async def execute_task(
     osm: ObjectStoreManager = config.task_object_store_manager
 
     tm: TaskManager = config.task_manager
-    task_uuid = tm.create_task(Status.PENDING)
+
+    client_ip = request.client.host if request.client else "N/A"
+    user_agent = request.headers.get("user-agent", "N/A")
+    source = f"ip={client_ip}; ua={user_agent}"
+
+    submitted_task = tm.create_task(model=model_name, type=task, source=source)
+    task_uuid = submitted_task.uuid
 
     # FIXME: Extract task metadata (e.g. type, payload size) for priority calculation
     if parsed_content_type in ("text/plain", "application/x-ndjson"):
@@ -314,7 +320,7 @@ async def execute_task(
     if "extra_params" in endpoint and "tracking_id" in endpoint["extra_params"]:
         query_params["tracking_id"] = task_uuid
 
-    task = {
+    task_dict = {
         "uuid": task_uuid,
         "method": endpoint["method"],
         "url": get_cms_url(model_name, endpoint["url"]),
@@ -324,9 +330,9 @@ async def execute_task(
     }
     priority = calculate_task_priority(task, config)
 
-    log.info(f"Executing task '{task['uuid']}': {task['method']} {task['url']}")
-    log.debug(f"Task details: {task}")
+    log.info(f"Executing task '{task_dict['uuid']}': {task_dict['method']} {task_dict['url']}")
+    log.debug(f"Task details: {task_dict}")
     qm: QueueManager = config.queue_manager
-    qm.publish(task, priority)
+    qm.publish(task_dict, priority)
 
     return {"uuid": task_uuid, "status": "Task submitted successfully"}

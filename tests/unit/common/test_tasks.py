@@ -1,10 +1,11 @@
 from collections.abc import Generator
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
-from cogstack_model_gateway.common.tasks import Status, TaskManager, UnexpectedStatusError
+from cogstack_model_gateway.common.tasks import Status, Task, TaskManager, UnexpectedStatusError
 
 
 @pytest.fixture
@@ -30,27 +31,36 @@ def test_status_enum() -> None:
     for status in Status:
         assert isinstance(status, Status)
         assert isinstance(status.value, str)
+        assert status.is_active() == (status in {Status.SCHEDULED, Status.RUNNING})
         assert status.is_final() == (status in {Status.SUCCEEDED, Status.FAILED})
 
 
 def test_create_task(task_manager: TaskManager) -> None:
     """Test creating a task with different statuses."""
-    task_uuid = task_manager.create_task(status=Status.PENDING)
-    assert isinstance(task_uuid, str)
-
-    running_task_uuid = task_manager.create_task(status=Status.RUNNING)
-    assert isinstance(running_task_uuid, str)
-    assert running_task_uuid != task_uuid
+    task = task_manager.create_task(model="annotation_model", type="process")
+    assert isinstance(task, Task)
+    assert task.uuid is not None
+    assert isinstance(task.uuid, str)
+    assert task.status == Status.PENDING
+    assert task.created_at is not None
+    assert isinstance(task.created_at, str)
+    assert datetime.fromisoformat(task.created_at)
+    assert task.model == "annotation_model"
+    assert task.type == "process"
+    assert task.source is None
 
 
 def test_get_task(task_manager: TaskManager) -> None:
     """Test retrieving an existing task."""
-    task_uuid = task_manager.create_task(status=Status.PENDING)
-    retrieved_task = task_manager.get_task(task_uuid)
+    task = task_manager.create_task()
+    retrieved_task = task_manager.get_task(task.uuid)
 
     assert retrieved_task is not None
-    assert retrieved_task.uuid == task_uuid
+    assert retrieved_task.uuid == task.uuid
     assert retrieved_task.status == Status.PENDING
+    assert retrieved_task.created_at is not None
+    assert isinstance(retrieved_task.created_at, str)
+    assert datetime.fromisoformat(retrieved_task.created_at)
 
 
 def test_get_nonexistent_task(task_manager: TaskManager) -> None:
@@ -63,25 +73,48 @@ def test_get_nonexistent_task(task_manager: TaskManager) -> None:
 
 def test_update_task(task_manager: TaskManager) -> None:
     """Test updating a task's status, result, and error message."""
-    task_uuid = task_manager.create_task(status=Status.PENDING)
+    task = task_manager.create_task()
     updated_task = task_manager.update_task(
-        task_uuid, status=Status.RUNNING, expected_status=Status.PENDING
+        task.uuid, status=Status.RUNNING, expected_status=Status.PENDING
     )
     assert updated_task.status == Status.RUNNING
+    assert updated_task.started_at is not None
+    started_at = datetime.fromisoformat(updated_task.started_at)
+    assert started_at <= datetime.now(UTC)
+    assert updated_task.finished_at is None
+    assert updated_task.model is None
+    assert updated_task.type is None
+
+    rescheduled_task = task_manager.update_task(
+        task.uuid, status=Status.PENDING, model="annotation_model", type="process"
+    )
+    assert rescheduled_task.status == Status.PENDING
+    assert rescheduled_task.model == "annotation_model"
+    assert rescheduled_task.type == "process"
+    assert rescheduled_task.created_at is not None
+    assert rescheduled_task.created_at == updated_task.created_at
+    assert rescheduled_task.started_at is not None
+    assert rescheduled_task.started_at == updated_task.started_at
+    assert rescheduled_task.finished_at is None
 
     final_task = task_manager.update_task(
-        task_uuid, status=Status.SUCCEEDED, result="Test result", error_message=None
+        task.uuid, status=Status.SUCCEEDED, result="Test result", error_message=None
     )
     assert final_task.status == Status.SUCCEEDED
     assert final_task.result == "Test result"
+    assert final_task.error_message is None
+    assert final_task.finished_at is not None
+    finished_at = datetime.fromisoformat(final_task.finished_at)
+    assert finished_at <= datetime.now(UTC)
+    assert finished_at > started_at
 
 
 def test_update_task_with_incorrect_expected_status(task_manager: TaskManager) -> None:
     """Test that updating a task with incorrect expected status raises an error."""
-    task_uuid = task_manager.create_task(status=Status.PENDING)
+    task = task_manager.create_task()
     with pytest.raises(UnexpectedStatusError, match="Unexpected status") as exc_info:
-        task_manager.update_task(task_uuid, status=Status.RUNNING, expected_status=Status.SUCCEEDED)
-    assert exc_info.value.task_uuid == task_uuid
+        task_manager.update_task(task.uuid, status=Status.RUNNING, expected_status=Status.SUCCEEDED)
+    assert exc_info.value.task_uuid == task.uuid
     assert exc_info.value.status == Status.PENDING.value
 
 
@@ -96,18 +129,18 @@ def test_update_nonexistent_task(task_manager: TaskManager) -> None:
 @patch("logging.Logger.info")
 def test_logging(mock_log_info: MagicMock, task_manager: TaskManager) -> None:
     """Test logged outputs."""
-    task_uuid = task_manager.create_task(status=Status.PENDING)
+    task = task_manager.create_task()
     mock_log_info.assert_called_with(
-        "Task '%s' created with status '%s'", task_uuid, Status.PENDING.value
+        "Task '%s' created with status '%s'", task.uuid, Status.PENDING.value
     )
 
-    _ = task_manager.get_task(task_uuid)
-    mock_log_info.assert_called_with("Retrieved task '%s'", task_uuid)
+    _ = task_manager.get_task(task.uuid)
+    mock_log_info.assert_called_with("Retrieved task '%s'", task.uuid)
 
-    task_manager.update_task(task_uuid, status=Status.RUNNING)
+    task_manager.update_task(task.uuid, status=Status.RUNNING)
     mock_log_info.assert_called_with(
         "Task '%s' updated (original status '%s', current status '%s')",
-        task_uuid,
+        task.uuid,
         Status.PENDING.value,
         Status.RUNNING.value,
     )

@@ -104,21 +104,26 @@ def test_get_task_by_uuid(client: TestClient, config: Config):
     assert response.json() == {"detail": f"Task '{task_uuid}' not found"}
 
     tm: TaskManager = config.task_manager
-    task_uuid = tm.create_task(status="pending")
-    response = client.get(f"/tasks/{task_uuid}")
+    task = tm.create_task()
+    response = client.get(f"/tasks/{task.uuid}")
     assert response.status_code == 200
-    assert response.json() == {"uuid": task_uuid, "status": "pending"}
+    assert response.json() == {"uuid": task.uuid, "status": "pending"}
 
-    tm.update_task(task_uuid, status="succeeded", result="result.txt", error_message=None)
-    response = client.get(f"/tasks/{task_uuid}", params={"detail": True})
+    tm.update_task(task.uuid, status=Status.SUCCEEDED, result="result.txt", error_message=None)
+    response = client.get(f"/tasks/{task.uuid}", params={"detail": True})
     assert response.status_code == 200
-    assert response.json() == {
-        "uuid": task_uuid,
-        "status": "succeeded",
-        "result": "result.txt",
-        "error_message": None,
-        "tracking_id": None,
-    }
+    res = response.json()
+    assert res["uuid"] == task.uuid
+    assert res["status"] == Status.SUCCEEDED.value
+    assert res["model"] is None
+    assert res["type"] is None
+    assert res["source"] is None
+    assert res["created_at"] is not None
+    assert res["started_at"] is None
+    assert res["finished_at"] is not None
+    assert res["result"] == "result.txt"
+    assert res["error_message"] is None
+    assert res["tracking_id"] is None
 
 
 def test_get_models(client: TestClient):
