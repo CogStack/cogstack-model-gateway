@@ -7,7 +7,6 @@ license = "Apache License 2.0"
 readme = "README.md"
 packages = [
     {include = "cogstack_model_gateway"},
-    {include = "cogstack_model_gateway_client", from = "client"}
 ]
 
 [tool.poetry.dependencies]
@@ -24,6 +23,9 @@ docker = "^7.1.0"
 mlflow = "^2.18.0"
 python-multipart = "^0.0.19"
 minio = "^7.2.12"
+
+[tool.poetry.group.ripper]
+optional = true
 
 [tool.poetry.group.ripper.dependencies]
 docker = "^7.1.0"
@@ -43,7 +45,6 @@ pytest-rerunfailures = "^15.0"
 watchdog = "^6.0.0"
 pytest-asyncio = "^1.0.0"
 pytest-mock = "^3.14.1"
-cogstack-model-gateway-client = {path = "client", develop = true}
 
 [tool.ruff]
 line-length = 100

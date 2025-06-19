@@ -27,7 +27,9 @@ jobs:
 
     - name: Install dependencies
       run: |
+        eval $(poetry env activate)
         poetry install --with dev
+        poetry install -P client
 
     - name: Run unit tests
       run: |

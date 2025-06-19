@@ -18,16 +18,18 @@ getting you started.
     curl -sSL https://install.python-poetry.org | python3 -
     ```
 
-3. Install the project dependencies:
-
-    ```shell
-    poetry install --with dev
-    ```
-
-4. Activate the virtual environment:
+3. Activate a virtual environment e.g. using `pyenv` or directly with Poetry like below:
 
     ```shell
     eval $(poetry env activate)
+    ```
+
+4. Install the project dependencies:
+
+    ```shell
+    poetry install --with dev --with migrations
+    # explicitly install the CogStackModel Gateway client for development
+    poetry install -P client
     ```
 
 ## Pre-commit Hooks
