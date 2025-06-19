@@ -1,0 +1,6 @@
+# CogStack Model Gateway Migrations
+
+A simple service to manage migrations for the CogStack Model Gateway.
+
+A separate [pyproject.toml](./pyproject.toml) file is used to manage Poetry dependencies, in order
+to bypass Poetry limitations regarding local

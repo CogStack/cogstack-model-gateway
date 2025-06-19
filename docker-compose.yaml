@@ -121,6 +121,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - gateway
       - cogstack-model-serve_cms
@@ -164,6 +166,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - gateway
       - cogstack-model-serve_cms
@@ -187,6 +191,28 @@ services:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
+  migrations:
+    image: cogstacksystems/cogstack-model-gateway-migrations:${CMG_IMAGE_TAG:-latest}
+    labels:
+      - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
+    environment:
+      - CMG_DB_USER=$CMG_DB_USER
+      - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
+      - CMG_DB_HOST=postgres
+      - CMG_DB_PORT=5432
+      - CMG_DB_NAME=$CMG_DB_NAME
+      - HTTP_PROXY=$HTTP_PROXY
+      - HTTPS_PROXY=$HTTPS_PROXY
+      - NO_PROXY=postgres
+      - http_proxy=$HTTP_PROXY
+      - https_proxy=$HTTPS_PROXY
+      - no_proxy=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - postgres
 
   pgadmin:
     image: dpage/pgadmin4:8.13.0

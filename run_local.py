@@ -14,6 +14,7 @@ CMG_SCHEDULER_DIR = f"{CMG_SRC_DIR}/scheduler"
 CMG_SCHEDULER_ENTRYPOINT = f"{CMG_SCHEDULER_DIR}/main.py"
 CMG_RIPPER_DIR = f"{CMG_SRC_DIR}/ripper"
 CMG_RIPPER_ENTRYPOINT = f"{CMG_RIPPER_DIR}/main.py"
+CMG_MIGRATIONS_DIR = f"{CMG_SRC_DIR}/migrations"
 
 CMG_DOCKER_SERVICES = ["minio", "pgadmin", "postgres", "rabbitmq"]
 
@@ -48,6 +49,9 @@ class ServiceManager:
         ripper = subprocess.Popen(["poetry", "run", "python3", CMG_RIPPER_ENTRYPOINT])
         self.processes.append(ripper)
 
+        print("Running migrations...")
+        subprocess.run(["poetry", "run", "alembic", "upgrade", "head"], cwd=CMG_MIGRATIONS_DIR)
+
     def stop_services(self):
         """Terminate all running services."""
         for process in self.processes:
@@ -77,7 +81,7 @@ if __name__ == "__main__":
     service_manager = ServiceManager()
 
     print("Installing dependencies...")
-    subprocess.run(["poetry", "install", "--with", "dev"])
+    subprocess.run(["poetry", "install", "--with", "dev", "--with", "migrations"])
 
     print("Starting Docker services...")
     subprocess.run(

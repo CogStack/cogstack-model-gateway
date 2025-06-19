@@ -24,7 +24,7 @@ jobs:
       attestations: write
     strategy:
       matrix:
-        service: [ gateway, scheduler, ripper ]
+        service: [ gateway, scheduler, ripper, migrations ]
         include:
         - service: gateway
           image: cogstacksystems/cogstack-model-gateway
@@ -35,6 +35,9 @@ jobs:
         - service: ripper
           image: cogstacksystems/cogstack-model-gateway-ripper
           dockerfile: ./cogstack_model_gateway/ripper/Dockerfile
+        - service: migrations
+          image: cogstacksystems/cogstack-model-gateway-migrations
+          dockerfile: ./cogstack_model_gateway/migrations/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
