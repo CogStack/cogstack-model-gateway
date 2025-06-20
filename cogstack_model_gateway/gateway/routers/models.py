@@ -14,6 +14,10 @@ from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
+from cogstack_model_gateway.gateway.prometheus.metrics import (
+    gateway_models_deployed_total,
+    gateway_tasks_processed_total,
+)
 from cogstack_model_gateway.gateway.routers.utils import (
     get_cms_url,
     get_content_type,
@@ -133,6 +137,7 @@ async def get_models(
 )
 async def get_model_info(model_name: str):
     """Get information about a running model server through its `/info` API."""
+    gateway_tasks_processed_total.labels(model=model_name, task="info").inc()
     # FIXME: Enable SSL verification when certificates are properly set up
     response = requests.get(get_cms_url(model_name, "info"), verify=False)
     if response.status_code == 404:
@@ -219,6 +224,8 @@ async def deploy_model(
         raise HTTPException(
             status_code=500, detail=f"Failed to deploy model '{model_name}': {str(e)}"
         )
+
+    gateway_models_deployed_total.labels(model=model_name, model_uri=model_uri).inc()
 
     log.info(f"Model '{model_name}' deployed successfully with container ID {container.id}")
     return {
@@ -334,5 +341,7 @@ async def execute_task(
     log.debug(f"Task details: {task_dict}")
     qm: QueueManager = config.queue_manager
     qm.publish(task_dict, priority)
+
+    gateway_tasks_processed_total.labels(model=model_name, task=task).inc()
 
     return {"uuid": task_uuid, "status": "Task submitted successfully"}

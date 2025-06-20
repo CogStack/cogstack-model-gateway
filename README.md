@@ -171,4 +171,3 @@ The project is still under active development. In the future we will be focusing
 * **Smart scheduling**: Implement a more sophisticated scheduling algorithm that takes into account
   the state of the cluster.
 * **CI/CD**: Set up a continuous integration and deployment pipeline for the project.
-* **Monitoring**: Integrate with Prometheus and Grafana.

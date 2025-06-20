@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import docker
 from dateutil import parser
 from docker.models.containers import Container
+from prometheus_client import start_http_server
 
 from cogstack_model_gateway.common.containers import (
     IS_MODEL_LABEL,
@@ -16,8 +17,10 @@ from cogstack_model_gateway.common.containers import (
     TTL_LABEL,
 )
 from cogstack_model_gateway.common.logging import configure_logging
+from cogstack_model_gateway.ripper.prometheus.metrics import containers_purged_total
 
 PURGE_INTERVAL = int(os.getenv("CMG_RIPPER_INTERVAL") or 60)
+METRICS_PORT = int(os.getenv("CMG_RIPPER_METRICS_PORT") or 8002)
 
 log = logging.getLogger("cmg.ripper")
 
@@ -27,6 +30,7 @@ def stop_and_remove_container(container: Container):
     log.info(f"Stopping and removing expired container: {container.name}")
     container.stop()
     container.remove()
+    containers_purged_total.inc()
 
 
 def purge_expired_containers():
@@ -71,6 +75,9 @@ def purge_expired_containers():
 def main():
     """Run the ripper service."""
     configure_logging()
+
+    start_http_server(METRICS_PORT)
+
     purge_expired_containers()
 
 

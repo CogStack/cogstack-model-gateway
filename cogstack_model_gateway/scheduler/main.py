@@ -1,7 +1,9 @@
 import logging
 import sys
 
-from cogstack_model_gateway.common.config import load_config
+from prometheus_client import start_http_server
+
+from cogstack_model_gateway.common.config import Config, load_config
 from cogstack_model_gateway.common.db import DatabaseManager
 from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
@@ -12,12 +14,11 @@ from cogstack_model_gateway.scheduler.scheduler import Scheduler
 log = logging.getLogger("cmg.scheduler")
 
 
-def initialize_connections() -> tuple[
-    DatabaseManager, ObjectStoreManager, QueueManager, TaskManager
-]:
+def initialize_connections(
+    config: Config,
+) -> tuple[DatabaseManager, ObjectStoreManager, QueueManager, TaskManager]:
     """Initialize database, object store, queue, and task manager connections for the scheduler."""
     log.info("Initializing database and queue connections")
-    config = load_config()
     dbm = DatabaseManager(
         user=config.cmg.db_user,
         password=config.cmg.db_password,
@@ -65,7 +66,10 @@ def main():
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     configure_logging()
-    connections = initialize_connections()
+    config = load_config()
+    connections = initialize_connections(config)
+
+    start_http_server(int(config.cmg.scheduler_metrics_port))
 
     scheduler = Scheduler(
         task_object_store_manager=connections[1],

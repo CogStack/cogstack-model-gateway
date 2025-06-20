@@ -100,6 +100,7 @@ services:
       - CMG_COMMON_LOG_LEVEL=$CMG_COMMON_LOG_LEVEL
       - CMG_GATEWAY_LOG_LEVEL=$CMG_GATEWAY_LOG_LEVEL
       - CMS_PROJECT_NAME=$CMS_PROJECT_NAME
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
       - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
@@ -126,6 +127,7 @@ services:
     networks:
       - gateway
       - cogstack-model-serve_cms
+      - observability
 
   scheduler:
     image: cogstacksystems/cogstack-model-gateway-scheduler:${CMG_IMAGE_TAG:-latest}
@@ -159,6 +161,8 @@ services:
       - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
+    expose:
+      - ${CMG_SCHEDULER_METRICS_PORT:-8001}
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,6 +175,7 @@ services:
     networks:
       - gateway
       - cogstack-model-serve_cms
+      - observability
 
   ripper:
     image: cogstacksystems/cogstack-model-gateway-ripper:${CMG_IMAGE_TAG:-latest}
@@ -189,8 +194,12 @@ services:
       - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
+    expose:
+      - ${CMG_RIPPER_METRICS_PORT:-8002}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - observability
 
   migrations:
     image: cogstacksystems/cogstack-model-gateway-migrations:${CMG_IMAGE_TAG:-latest}
@@ -213,6 +222,64 @@ services:
         condition: service_healthy
     networks:
       - postgres
+
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    restart: always
+    profiles:
+      - o11y
+    environment:
+      - HTTP_PROXY=$HTTP_PROXY
+      - HTTPS_PROXY=$HTTPS_PROXY
+      - NO_PROXY=gateway,scheduler,ripper
+      - http_proxy=$HTTP_PROXY
+      - https_proxy=$HTTPS_PROXY
+      - no_proxy=gateway,scheduler,ripper
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    expose:
+      - 9090
+    ports:
+      - 9090
+    networks:
+      - observability
+    healthcheck:
+      test: [ "CMD", "wget", "-O", "/dev/null", "-o", "/dev/null", "http://localhost:9090" ]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    restart: always
+    profiles:
+      - o11y
+    environment:
+      - GF_SECURITY_ADMIN_USER=$O11Y_GRAFANA_USER
+      - GF_SECURITY_ADMIN_PASSWORD=$O11Y_GRAFANA_PASSWORD
+      - PROMETHEUS_URL=http://prometheus:9090
+      - HTTP_PROXY=$HTTP_PROXY
+      - HTTPS_PROXY=$HTTPS_PROXY
+      - NO_PROXY=prometheus
+      - http_proxy=$HTTP_PROXY
+      - https_proxy=$HTTPS_PROXY
+      - no_proxy=prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    expose:
+      - 3000
+    ports:
+      - 3000
+    networks:
+      - observability
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/healthz" ]
+      interval: 60s
+      timeout: 20s
+      retries: 3
 
   pgadmin:
     image: dpage/pgadmin4:8.13.0
@@ -246,11 +313,17 @@ volumes:
     driver: local
   rabbitmq-data:
     driver: local
+  grafana-data:
+    driver: local
+  prometheus-data:
+    driver: local
 
 networks:
   postgres:
     driver: bridge
   gateway:
+    driver: bridge
+  observability:
     driver: bridge
   cogstack-model-serve_cms:
     external: true

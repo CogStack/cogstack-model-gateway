@@ -19,6 +19,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 
 WORKDIR /app
 
+COPY cogstack_model_gateway/gateway/gunicorn.conf.py ./
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --only main --no-root --no-directory
 
@@ -30,4 +31,4 @@ RUN poetry install --only main
 
 EXPOSE 8000
 
-CMD ["poetry", "run", "fastapi", "run", "--workers", "4", "cogstack_model_gateway/gateway/main.py"]
+CMD ["poetry", "run", "gunicorn", "-c", "gunicorn.conf.py", "cogstack_model_gateway.gateway.main:app"]

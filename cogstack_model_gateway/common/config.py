@@ -30,7 +30,9 @@ ACCEPTED_ENVIRONMENT_VARIABLES = {
         "CMG_QUEUE_NAME": "cmg_tasks",
         "CMG_QUEUE_HOST": "rabbitmq",
         "CMG_QUEUE_PORT": "5672",
+        "CMG_SCHEDULER_METRICS_PORT": "8001",
         "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
+        "CMG_RIPPER_METRICS_PORT": "8002",
     },
 }
 

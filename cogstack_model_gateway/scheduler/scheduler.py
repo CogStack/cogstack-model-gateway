@@ -13,6 +13,12 @@ from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, Task, TaskManager, UnexpectedStatusError
 from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.common.utils import parse_content_type_header
+from cogstack_model_gateway.scheduler.prometheus.metrics import (
+    tasks_completed_total,
+    tasks_requeued_total,
+    tasks_scheduled_total,
+)
+from cogstack_model_gateway.scheduler.prometheus.utils import get_task_labels
 
 log = logging.getLogger("cmg.scheduler")
 
@@ -44,20 +50,24 @@ class Scheduler:
         task_uuid = task["uuid"]
         log.info(f"Processing task '{task_uuid}'")
 
+        schd_task = None
         try:
-            self.task_manager.update_task(
+            schd_task = self.task_manager.update_task(
                 task_uuid, status=Status.SCHEDULED, expected_status=Status.PENDING
             )
+            tasks_scheduled_total.labels(**get_task_labels(schd_task)).inc()
         except UnexpectedStatusError as e:
             # Log a warning if a completed task is being reprocessed (we should never land here)
             # and make sure it's removed from the queue
             if e.status in {Status.SUCCEEDED, Status.FAILED}:
                 log.warning(f"Task '{task_uuid}' is already completed with status '{e.status}'")
                 ack()
+                tasks_completed_total.labels(**get_task_labels(schd_task), status=e.status).inc()
                 return
             else:
                 log.error(f"Skipping task '{task_uuid}' (expected PENDING state): {e}")
                 nack(requeue=False)
+                tasks_completed_total.labels(**get_task_labels(schd_task), status="skipped").inc()
                 return
 
         try:
@@ -68,7 +78,10 @@ class Scheduler:
             err_msg = f"Unexpected error while processing task '{task_uuid}': {e}"
             log.error(err_msg)
             nack(requeue=False)
-            self.task_manager.update_task(task_uuid, status=Status.FAILED, error_message=err_msg)
+            failed_task = self.task_manager.update_task(
+                task_uuid, status=Status.FAILED, error_message=err_msg
+            )
+            tasks_completed_total.labels(**get_task_labels(failed_task), status="failed").inc()
             return
 
     @retry_if_rate_limited
@@ -199,9 +212,11 @@ class Scheduler:
         # FIXME: Add fine-grained error handling for different status codes
         if not response:
             nack(requeue=False)
-            return self.task_manager.update_task(
+            task = self.task_manager.update_task(
                 task_uuid, status=Status.FAILED, error_message=err_msg or "Failed to process task"
             )
+            tasks_completed_total.labels(**get_task_labels(task), status=task.status.value).inc()
+            return task
         elif (
             response.status_code == 503
             and (experiment_id := response.json().get("experiment_id"))
@@ -213,15 +228,19 @@ class Scheduler:
             )
             log.warning(warn_msg)
             nack()
-            return self.task_manager.update_task(
+            task = self.task_manager.update_task(
                 task_uuid, status=Status.PENDING, error_message=warn_msg
             )
+            tasks_requeued_total.labels(**get_task_labels(task)).inc()
+            return task
         else:
             log.error(f"Task '{task_uuid}' failed with unexpected error: {response.text}")
             nack(requeue=False)
-            return self.task_manager.update_task(
+            task = self.task_manager.update_task(
                 task_uuid, status=Status.FAILED, error_message=response.text
             )
+            tasks_completed_total.labels(**get_task_labels(task), status=task.status.value).inc()
+            return task
 
     def _handle_task_success(self, task_uuid: str, response: Response, ack: callable) -> Task:
         """Handle successful responses from the model server.
@@ -247,22 +266,32 @@ class Scheduler:
             results = self.poll_task_status(task_uuid, tracking_id)
             if results["status"] == Status.FAILED:
                 log.error(f"Task '{task_uuid}' failed: {results['error']}")
-                return self.task_manager.update_task(
+                task = self.task_manager.update_task(
                     task_uuid, status=Status.FAILED, error_message=str(results["error"])
                 )
+                tasks_completed_total.labels(
+                    **get_task_labels(task), status=task.status.value
+                ).inc()
+                return task
             else:
                 log.info(f"Task '{task_uuid}' completed, writing results to object store")
                 object_key = self.results_object_store_manager.upload_object(
                     results["url"].encode(), "results.url", prefix=task_uuid
                 )
-                return self.task_manager.update_task(
+                task = self.task_manager.update_task(
                     task_uuid, status=Status.SUCCEEDED, result=object_key
                 )
+                tasks_completed_total.labels(
+                    **get_task_labels(task), status=task.status.value
+                ).inc()
+                return task
         else:
             log.info(f"Task '{task_uuid}' completed, writing results to object store")
             object_key = self.results_object_store_manager.upload_object(
                 response.content, "results.json", prefix=task_uuid
             )
-            return self.task_manager.update_task(
+            task = self.task_manager.update_task(
                 task_uuid, status=Status.SUCCEEDED, result=object_key
             )
+            tasks_completed_total.labels(**get_task_labels(task), status=task.status.value).inc()
+            return task

@@ -1,8 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import urllib3
 from fastapi import FastAPI
+from prometheus_client import CollectorRegistry, make_asgi_app, multiprocess
 
 from cogstack_model_gateway.common.config import load_config
 from cogstack_model_gateway.common.db import DatabaseManager
@@ -10,9 +12,19 @@ from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
+from cogstack_model_gateway.gateway.prometheus.metrics import gateway_requests_total
 from cogstack_model_gateway.gateway.routers import models, tasks
 
 log = logging.getLogger("cmg.gateway")
+
+
+def make_metrics_app():
+    """Create a registry for each process and aggregate metrics with MultiProcessCollector."""
+    prometheus_multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus")
+    os.makedirs(prometheus_multiproc_dir, exist_ok=True)
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry, path=prometheus_multiproc_dir)
+    return make_asgi_app(registry=registry)
 
 
 @asynccontextmanager
@@ -72,6 +84,15 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 app = FastAPI(lifespan=lifespan)
 app.include_router(models.router)
 app.include_router(tasks.router)
+
+app.mount("/metrics", make_metrics_app())
+
+
+@app.middleware("http")
+async def prometheus_request_counter(request, call_next):
+    response = await call_next(request)
+    gateway_requests_total.labels(method=request.method, endpoint=request.url.path).inc()
+    return response
 
 
 @app.get("/")
