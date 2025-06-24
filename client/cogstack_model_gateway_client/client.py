@@ -140,7 +140,8 @@ class GatewayClient:
             pass
 
         try:
-            if jsonl := [json.loads(line) for line in result_str.split("\n") if line]:
+            jsonl = [json.loads(line) for line in result_str.split("\n") if line]
+            if jsonl:
                 return jsonl
         except Exception:
             pass
@@ -155,7 +156,8 @@ class GatewayClient:
         start = asyncio.get_event_loop().time()
         while True:
             task = await self.get_task(task_uuid, detail=detail)
-            if (status := task.get("status")) in ("succeeded", "failed"):
+            status = task.get("status")
+            if status in ("succeeded", "failed"):
                 if status == "failed" and raise_on_error:
                     error_message = task.get("error_message", "Unknown error")
                     raise RuntimeError(f"Task '{task_uuid}' failed: {error_message}")

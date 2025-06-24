@@ -1,4 +1,4 @@
-name: Python tests
+name: Gateway Python tests
 
 on:
   push:
@@ -27,13 +27,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        eval $(poetry env activate)
         poetry install --with dev
-        poetry install -P client
 
     - name: Run unit tests
       run: |
-        poetry run pytest tests/unit
+        poetry run pytest tests/unit --ignore=tests/unit/client
 
   integration:
     runs-on: ubuntu-latest

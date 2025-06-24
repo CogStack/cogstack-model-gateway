@@ -29,7 +29,7 @@ getting you started.
     ```shell
     poetry install --with dev --with migrations
     # explicitly install the CogStackModel Gateway client for development
-    poetry install -P client
+    poetry install -P client --with dev
     ```
 
 ## Pre-commit Hooks
