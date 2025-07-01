@@ -16,11 +16,31 @@ class GatewayClient:
         polling_interval: float = 2.0,
         timeout: float = 300.0,
     ):
+        """Initialize the GatewayClient with the base Gateway URL and optional parameters.
+
+        Args:
+            base_url (str): The base URL of the Gateway service.
+            default_model (str, optional): The default model to use for tasks. Defaults to None.
+            polling_interval (float, optional): The interval in seconds to poll for task completion.
+                Defaults to 2.0 seconds, with a minimum of 0.5 and maximum of 3.0 seconds.
+            timeout (float, optional): The client polling timeout while waiting for task completion.
+                Defaults to 300.0 seconds. A TimeoutError in this case should rarely indicate that
+                something went wrong, but rather that the task is taking longer than expected (e.g.
+                common with long running tasks like training).
+        """
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
         self.polling_interval = polling_interval
         self.timeout = timeout
         self._client = None
+
+    @property
+    def polling_interval(self):
+        return self._polling_interval
+
+    @polling_interval.setter
+    def polling_interval(self, value: float):
+        self._polling_interval = max(0.5, min(value, 3.0))
 
     async def __aenter__(self):
         self._client = httpx.AsyncClient()
@@ -273,6 +293,34 @@ class GatewayClientSync:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self._client.__aenter__())
+
+    @property
+    def base_url(self):
+        return self._client.base_url
+
+    @property
+    def default_model(self):
+        return self._client.default_model
+
+    @default_model.setter
+    def default_model(self, value: str):
+        self._client.default_model = value
+
+    @property
+    def polling_interval(self):
+        return self._client.polling_interval
+
+    @polling_interval.setter
+    def polling_interval(self, value: float):
+        self._client.polling_interval = value
+
+    @property
+    def timeout(self):
+        return self._client.timeout
+
+    @timeout.setter
+    def timeout(self, value: float):
+        self._client.timeout = value
 
     def __del__(self):
         try:
