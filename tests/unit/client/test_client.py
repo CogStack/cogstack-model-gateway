@@ -24,14 +24,23 @@ async def test_gateway_client_init():
     client = GatewayClient(
         base_url="http://localhost:8888/",
         default_model="test-model",
-        polling_interval=0.01,
+        polling_interval=0.5,
         timeout=0.1,
     )
     assert client.base_url == "http://localhost:8888"
     assert client.default_model == "test-model"
-    assert client.polling_interval == 0.01
+    assert client.polling_interval == 0.5
     assert client.timeout == 0.1
     assert client._client is None
+
+    client = GatewayClient(
+        base_url="http://localhost:8888/",
+        polling_interval=10,
+    )
+    assert client.polling_interval == 3.0  # Maximum 3.0 seconds
+
+    client.polling_interval = 0.05
+    assert client.polling_interval == 0.5  # Minimum is 0.5 seconds
 
 
 @pytest.mark.asyncio
@@ -65,7 +74,8 @@ async def test_submit_task_success(mock_httpx_async_client):
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = {"uuid": "task-123", "status": "pending"}
-    mock_client_instance.post.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         task_info = await client.submit_task(
@@ -73,8 +83,9 @@ async def test_submit_task_success(mock_httpx_async_client):
         )
 
     assert task_info == {"uuid": "task-123", "status": "pending"}
-    mock_client_instance.post.assert_awaited_once_with(
-        "http://test-gateway.com/models/my_model/tasks/process",
+    mock_client_instance.request.assert_awaited_once_with(
+        method="POST",
+        url="http://test-gateway.com/models/my_model/tasks/process",
         data="some text",
         json=None,
         files=None,
@@ -90,7 +101,8 @@ async def test_submit_task_with_default_model(mock_httpx_async_client):
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = {"uuid": "task-456", "status": "pending"}
-    mock_client_instance.post.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(
         base_url="http://test-gateway.com", default_model="default_model"
@@ -98,8 +110,9 @@ async def test_submit_task_with_default_model(mock_httpx_async_client):
         task_info = await client.submit_task(task="process", data="some text")
 
     assert task_info == {"uuid": "task-456", "status": "pending"}
-    mock_client_instance.post.assert_awaited_once_with(
-        "http://test-gateway.com/models/default_model/tasks/process",
+    mock_client_instance.request.assert_awaited_once_with(
+        method="POST",
+        url="http://test-gateway.com/models/default_model/tasks/process",
         data="some text",
         json=None,
         files=None,
@@ -124,7 +137,7 @@ async def test_submit_task_http_error(mock_httpx_async_client):
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "Bad Request", request=httpx.Request("POST", "url"), response=httpx.Response(400)
     )
-    mock_client_instance.post.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     with pytest.raises(httpx.HTTPStatusError):
         async with GatewayClient(base_url="http://test-gateway.com") as client:
@@ -137,7 +150,8 @@ async def test_submit_task_wait_for_completion_and_return_result(mock_httpx_asyn
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = {"uuid": "task-123", "status": "pending"}
-    mock_client_instance.post.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     mock_wait_for_task = mocker.patch(
         "client.cogstack_model_gateway_client.client.GatewayClient.wait_for_task",
@@ -220,14 +234,20 @@ async def test_get_task_success(mock_httpx_async_client):
     mock_response = MagicMock()
     mock_response.raise_for_status.return_value = mock_response
     mock_response.json.return_value = {"uuid": "task-123", "status": "succeeded"}
-    mock_client_instance.get.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         task_info = await client.get_task("task-123")
 
     assert task_info == {"uuid": "task-123", "status": "succeeded"}
-    mock_client_instance.get.assert_awaited_once_with(
-        "http://test-gateway.com/tasks/task-123", params={"detail": True, "download": False}
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/tasks/task-123",
+        params={"detail": True, "download": False},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
     )
     mock_response.raise_for_status.assert_called_once()
 
@@ -239,7 +259,7 @@ async def test_get_task_result_json(mock_httpx_async_client):
     mock_response = MagicMock()
     mock_response.content = b'{"key": "value"}'
     mock_response.raise_for_status.return_value = mock_response
-    mock_client_instance.get.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         result = await client.get_task_result("task-123")
@@ -253,7 +273,7 @@ async def test_get_task_result_jsonl(mock_httpx_async_client):
     mock_response = MagicMock()
     mock_response.content = b'{"item": 1}\n{"item": 2}\n'
     mock_response.raise_for_status.return_value = mock_response
-    mock_client_instance.get.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         result = await client.get_task_result("task-123")
@@ -267,7 +287,7 @@ async def test_get_task_result_text(mock_httpx_async_client):
     mock_response = MagicMock()
     mock_response.content = b"plain text result"
     mock_response.raise_for_status.return_value = mock_response
-    mock_client_instance.get.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         result = await client.get_task_result("task-123")
@@ -281,7 +301,7 @@ async def test_get_task_result_binary(mock_httpx_async_client):
     mock_response = MagicMock()
     mock_response.content = b"\x80\x01\x02\x03"  # Example binary data
     mock_response.raise_for_status.return_value = mock_response
-    mock_client_instance.get.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         result = await client.get_task_result("task-123")
@@ -295,7 +315,7 @@ async def test_get_task_result_no_parse(mock_httpx_async_client):
     mock_response = MagicMock()
     mock_response.content = b'{"key": "value"}'
     mock_response.raise_for_status.return_value = mock_response
-    mock_client_instance.get.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         result = await client.get_task_result("task-123", parse=False)
@@ -334,7 +354,7 @@ async def test_wait_for_task_timeout(mock_httpx_async_client, mocker):
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         client.timeout = 0.05
-        client.polling_interval = 0.01
+        client.polling_interval = 0.5
 
         with pytest.raises(
             TimeoutError, match="Timed out waiting for task 'task-polling' to complete"
@@ -394,13 +414,20 @@ async def test_get_models_success(mock_httpx_async_client):
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = ["model_a", "model_b"]
-    mock_client_instance.get.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         models = await client.get_models()
     assert models == ["model_a", "model_b"]
-    mock_client_instance.get.assert_awaited_once_with(
-        "http://test-gateway.com/models/", params={"verbose": False}
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/models/",
+        params={"verbose": False},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
     )
 
 
@@ -410,13 +437,20 @@ async def test_get_model_success(mock_httpx_async_client):
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = {"name": "my_model", "status": "deployed"}
-    mock_client_instance.get.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         model_info = await client.get_model(model_name="my_model")
     assert model_info == {"name": "my_model", "status": "deployed"}
-    mock_client_instance.get.assert_awaited_once_with(
-        "http://test-gateway.com/models/my_model/info"
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/models/my_model/info",
+        params=None,
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
     )
 
 
@@ -426,15 +460,22 @@ async def test_get_model_with_default_model(mock_httpx_async_client):
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = {"name": "default_model", "status": "deployed"}
-    mock_client_instance.get.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(
         base_url="http://test-gateway.com", default_model="default_model"
     ) as client:
         model_info = await client.get_model()
     assert model_info == {"name": "default_model", "status": "deployed"}
-    mock_client_instance.get.assert_awaited_once_with(
-        "http://test-gateway.com/models/default_model/info"
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/models/default_model/info",
+        params=None,
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
     )
 
 
@@ -452,7 +493,8 @@ async def test_deploy_model_success(mock_httpx_async_client):
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = {"name": "new_model", "status": "deploying"}
-    mock_client_instance.post.return_value = mock_response
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         deploy_info = await client.deploy_model(
@@ -462,11 +504,16 @@ async def test_deploy_model_success(mock_httpx_async_client):
         )
 
     assert deploy_info == {"name": "new_model", "status": "deploying"}
-    mock_client_instance.post.assert_awaited_once_with(
-        "http://test-gateway.com/models/new_model",
+    mock_client_instance.request.assert_awaited_once_with(
+        method="POST",
+        url="http://test-gateway.com/models/new_model",
         json={
             "tracking_id": None,
             "model_uri": "mlflow-artifacts:/1/runidabcd1234/artifacts/new_model",
             "ttl": 3600,
         },
+        params=None,
+        data=None,
+        files=None,
+        headers=None,
     )
