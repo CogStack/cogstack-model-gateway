@@ -5,6 +5,8 @@ from functools import wraps
 
 import httpx
 
+from cogstack_model_gateway_client.exceptions import retry_if_network_error
+
 
 class GatewayClient:
     def __init__(
@@ -42,6 +44,33 @@ class GatewayClient:
         return wrapper
 
     @require_client
+    @retry_if_network_error
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        data=None,
+        json=None,
+        files=None,
+        params=None,
+        headers=None,
+        **kwargs,
+    ) -> httpx.Response:
+        """Make HTTP requests with retry logic."""
+        resp = await self._client.request(
+            method=method,
+            url=url,
+            data=data,
+            json=json,
+            files=files,
+            params=params,
+            headers=headers,
+            **kwargs,
+        )
+        return resp.raise_for_status()
+
+    @require_client
     async def submit_task(
         self,
         model_name: str = None,
@@ -59,11 +88,12 @@ class GatewayClient:
         if not model_name:
             raise ValueError("Please provide a model name or set a default model for the client.")
         url = f"{self.base_url}/models/{model_name}/tasks/{task}"
-        resp = await self._client.post(
-            url, data=data, json=json, files=files, params=params, headers=headers
+
+        resp = await self._request(
+            "POST", url, data=data, json=json, files=files, params=params, headers=headers
         )
-        resp.raise_for_status()
         task_info = resp.json()
+
         if wait_for_completion:
             task_uuid = task_info["uuid"]
             task_info = await self.wait_for_task(task_uuid)
@@ -143,8 +173,7 @@ class GatewayClient:
         """Get a Gateway task."""
         url = f"{self.base_url}/tasks/{task_uuid}"
         params = {"detail": detail, "download": download}
-        resp = await self._client.get(url, params=params)
-        return resp.raise_for_status()
+        return await self._request("GET", url, params=params)
 
     @require_client
     async def get_task(self, task_uuid: str, detail: bool = True):
@@ -207,8 +236,7 @@ class GatewayClient:
     async def get_models(self, verbose: bool = False):
         """Get the list of available models from the Gateway."""
         url = f"{self.base_url}/models/"
-        resp = await self._client.get(url, params={"verbose": verbose})
-        resp.raise_for_status()
+        resp = await self._request("GET", url, params={"verbose": verbose})
         return resp.json()
 
     @require_client
@@ -218,8 +246,7 @@ class GatewayClient:
         if not model_name:
             raise ValueError("Please provide a model name or set a default model for the client.")
         url = f"{self.base_url}/models/{model_name}/info"
-        resp = await self._client.get(url)
-        resp.raise_for_status()
+        resp = await self._request("GET", url)
         return resp.json()
 
     @require_client
@@ -236,8 +263,7 @@ class GatewayClient:
             raise ValueError("Please provide a model name or set a default model for the client.")
         url = f"{self.base_url}/models/{model_name}"
         data = {"tracking_id": tracking_id, "model_uri": model_uri, "ttl": ttl}
-        resp = await self._client.post(url, json=data)
-        resp.raise_for_status()
+        resp = await self._request("POST", url, json=data)
         return resp.json()
 
 
