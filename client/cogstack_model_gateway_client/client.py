@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import Iterable
 from functools import wraps
 
 import httpx
@@ -46,6 +47,7 @@ class GatewayClient:
         model_name: str = None,
         task: str = None,
         data=None,
+        json=None,
         files=None,
         params=None,
         headers=None,
@@ -57,7 +59,9 @@ class GatewayClient:
         if not model_name:
             raise ValueError("Please provide a model name or set a default model for the client.")
         url = f"{self.base_url}/models/{model_name}/tasks/{task}"
-        resp = await self._client.post(url, data=data, files=files, params=params, headers=headers)
+        resp = await self._client.post(
+            url, data=data, json=json, files=files, params=params, headers=headers
+        )
         resp.raise_for_status()
         task_info = resp.json()
         if wait_for_completion:
@@ -84,18 +88,51 @@ class GatewayClient:
             return_result=return_result,
         )
 
+    async def process_bulk(
+        self,
+        texts: list[str],
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Generate annotations for a list of texts."""
+        return await self.submit_task(
+            model_name=model_name,
+            task="process_bulk",
+            json=texts,
+            headers={"Content-Type": "application/json"},
+            wait_for_completion=wait_for_completion,
+            return_result=return_result,
+        )
+
     async def redact(
         self,
         text: str,
+        concepts_to_keep: Iterable[str] = None,
+        warn_on_no_redaction: bool = None,
+        mask: str = None,
+        hash: bool = None,
         model_name: str = None,
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
         """Redact sensitive information from the provided text."""
+        params = {
+            k: v
+            for k, v in {
+                "concepts_to_keep": concepts_to_keep,
+                "warn_on_no_redaction": warn_on_no_redaction,
+                "mask": mask,
+                "hash": hash,
+            }.items()
+            if v is not None
+        } or None
+
         return await self.submit_task(
             model_name=model_name,
             task="redact",
             data=text,
+            params=params,
             headers={"Content-Type": "text/plain"},
             wait_for_completion=wait_for_completion,
             return_result=return_result,
@@ -224,6 +261,9 @@ class GatewayClientSync:
 
     def process(self, *args, **kwargs):
         return self._loop.run_until_complete(self._client.process(*args, **kwargs))
+
+    def process_bulk(self, *args, **kwargs):
+        return self._loop.run_until_complete(self._client.process_bulk(*args, **kwargs))
 
     def redact(self, *args, **kwargs):
         return self._loop.run_until_complete(self._client.redact(*args, **kwargs))

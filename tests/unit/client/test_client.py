@@ -76,6 +76,7 @@ async def test_submit_task_success(mock_httpx_async_client):
     mock_client_instance.post.assert_awaited_once_with(
         "http://test-gateway.com/models/my_model/tasks/process",
         data="some text",
+        json=None,
         files=None,
         params=None,
         headers=None,
@@ -100,6 +101,7 @@ async def test_submit_task_with_default_model(mock_httpx_async_client):
     mock_client_instance.post.assert_awaited_once_with(
         "http://test-gateway.com/models/default_model/tasks/process",
         data="some text",
+        json=None,
         files=None,
         params=None,
         headers=None,
@@ -177,15 +179,34 @@ async def test_process_method(mocker):
 
 
 @pytest.mark.asyncio
+async def test_process_bulk_method(mocker):
+    """Test the process_bulk method."""
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        mock_submit_task = mocker.patch.object(client, "submit_task", new=AsyncMock())
+        await client.process_bulk(texts=["text1", "text2"], model_name="bulk_model")
+        mock_submit_task.assert_awaited_once_with(
+            model_name="bulk_model",
+            task="process_bulk",
+            json=["text1", "text2"],
+            headers={"Content-Type": "application/json"},
+            wait_for_completion=True,
+            return_result=True,
+        )
+
+
+@pytest.mark.asyncio
 async def test_redact_method(mocker):
     """Test the redact method."""
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         mock_submit_task = mocker.patch.object(client, "submit_task", new=AsyncMock())
-        await client.redact(text="sensitive text", model_name="deid_model")
+        await client.redact(
+            text="sensitive text", concepts_to_keep=["label1", "label2"], model_name="deid_model"
+        )
         mock_submit_task.assert_awaited_once_with(
             model_name="deid_model",
             task="redact",
             data="sensitive text",
+            params={"concepts_to_keep": ["label1", "label2"]},
             headers={"Content-Type": "text/plain"},
             wait_for_completion=True,
             return_result=True,
