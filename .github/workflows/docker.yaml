@@ -3,7 +3,7 @@ name: Build and push Docker images
 on:
   workflow_run:
     workflows:
-      - "Python tests"
+      - "Gateway Python tests"
     types:
       - completed
   workflow_dispatch:
