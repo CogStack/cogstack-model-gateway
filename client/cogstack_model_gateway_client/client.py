@@ -128,7 +128,7 @@ class GatewayClient:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Generate annotations for the the provided text."""
+        """Generate annotations for the provided text."""
         return await self.submit_task(
             model_name=model_name,
             task="process",
@@ -289,10 +289,18 @@ class GatewayClient:
 
 class GatewayClientSync:
     def __init__(self, *args, **kwargs):
-        self._client = GatewayClient(*args, **kwargs)
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_until_complete(self._client.__aenter__())
+        self._runner = asyncio.Runner()
+        self._client = self._runner.run(GatewayClient(*args, **kwargs).__aenter__())
+
+    def __del__(self):
+        if getattr(self, "_client", None):
+            self._runner.run(self._client.__aexit__(None, None, None))
+        if getattr(self, "_runner", None):
+            self._runner.close()
+
+    def _run_async(self, coro):
+        """Run a coroutine inside private Runner."""
+        return self._runner.run(coro)
 
     @property
     def base_url(self):
@@ -322,40 +330,253 @@ class GatewayClientSync:
     def timeout(self, value: float):
         self._client.timeout = value
 
-    def __del__(self):
-        try:
-            if hasattr(self, "_client") and self._client and self._client._client is not None:
-                self._loop.run_until_complete(self._client.__aexit__(None, None, None))
-                self._loop.close()
-        except Exception:
-            pass
+    # def _setup_event_loop(self):
+    #     """Set up event loop handling for sync operations."""
+    #     try:
+    #         existing_loop = asyncio.get_running_loop()
+    #         self._loop = existing_loop
+    #         self._own_loop = False
+    #         self._background_loop = None
+    #         self._setup_background_loop()
+    #     except RuntimeError:
+    #         self._loop = asyncio.new_event_loop()
+    #         asyncio.set_event_loop(self._loop)
+    #         self._own_loop = True
+    #         self._background_loop = None
+    #         self._loop.run_until_complete(self._client.__aenter__())
 
-    def submit_task(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.submit_task(*args, **kwargs))
+    # def _setup_background_loop(self):
+    #     """Set up a background thread with persistent event loop."""
+    #     self._client_initialized = threading.Event()
+    #     self._setup_error = None
 
-    def process(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.process(*args, **kwargs))
+    #     def run_background_loop():
+    #         try:
+    #             loop = asyncio.new_event_loop()
+    #             self._background_loop = loop
 
-    def process_bulk(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.process_bulk(*args, **kwargs))
+    #             async def init_client():
+    #                 try:
+    #                     await self._client.__aenter__()
+    #                 except Exception as e:
+    #                     self._setup_error = e
+    #                     raise
+    #                 finally:
+    #                     self._client_initialized.set()
 
-    def redact(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.redact(*args, **kwargs))
+    #             # Create task and keep reference to prevent it from being garbage collected
+    #             self._init_task = loop.create_task(init_client())
 
-    def get_task(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.get_task(*args, **kwargs))
+    #             # Set a callback to handle completion or error
+    #             def on_init_complete(task):
+    #                 if task.exception():
+    #                     if not self._setup_error:
+    #                         self._setup_error = task.exception()
 
-    def get_task_result(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.get_task_result(*args, **kwargs))
+    #             self._init_task.add_done_callback(on_init_complete)
 
-    def wait_for_task(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.wait_for_task(*args, **kwargs))
+    #             loop.run_forever()
 
-    def get_models(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.get_models(*args, **kwargs))
+    #         except Exception as e:
+    #             if not self._setup_error:
+    #                 self._setup_error = e
+    #             self._client_initialized.set()
 
-    def get_model(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.get_model(*args, **kwargs))
+    #     self._thread = threading.Thread(target=run_background_loop, daemon=True)
+    #     self._thread.start()
 
-    def deploy_model(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._client.deploy_model(*args, **kwargs))
+    #     # Wait for client to be ready
+    #     if not self._client_initialized.wait(timeout=5.0):
+    #         raise RuntimeError("Failed to initialize client in background loop within timeout")
+
+    #     if self._setup_error:
+    #         raise RuntimeError(f"Failed to setup background client: {self._setup_error}")
+
+    # def _run_async(self, coro):
+    #     """Run an async coroutine, handling different event loop scenarios."""
+    #     if self._own_loop:
+    #         return self._loop.run_until_complete(coro)
+    #     else:
+    #         if not hasattr(self, "_background_loop") or not self._background_loop:
+    #             raise RuntimeError("Background loop not initialized")
+
+    #         future = asyncio.run_coroutine_threadsafe(coro, self._background_loop)
+    #         return future.result(timeout=60)
+
+    # def __del__(self):
+    #     try:
+    #         if not hasattr(self, "_client") or not self._client:
+    #             return
+
+    #         if self._own_loop and self._client._client is not None:
+    #             try:
+    #                 self._loop.run_until_complete(self._client.__aexit__(None, None, None))
+    #                 self._loop.close()
+    #             except Exception:
+    #                 pass
+    #         elif hasattr(self, "_background_loop") and hasattr(self, "_thread"):
+    #             if self._background_loop and not self._background_loop.is_closed():
+    #                 try:
+    #                     # Cancel the init task if it's still pending
+    #                     if (
+    #                         hasattr(self, "_init_task")
+    #                         and self._init_task
+    #                         and not self._init_task.done()
+    #                     ):
+    #                         self._init_task.cancel()
+
+    #                     # Only call __aexit__ if the client was successfully initialized
+    #                     # (i.e., if the init task completed successfully)
+    #                     if (
+    #                         hasattr(self, "_init_task")
+    #                         and self._init_task
+    #                         and self._init_task.done()
+    #                         and not self._init_task.exception()
+    #                         and hasattr(self._client, "_client")
+    #                         and self._client._client is not None
+    #                     ):
+    #                         future = asyncio.run_coroutine_threadsafe(
+    #                             self._client.__aexit__(None, None, None), self._background_loop
+    #                         )
+    #                         future.result(timeout=0.5)
+    #                 except Exception:
+    #                     pass
+    #                 try:
+    #                     self._background_loop.call_soon_threadsafe(self._background_loop.stop)
+    #                 except Exception:
+    #                     pass
+    #             if self._thread and self._thread.is_alive():
+    #                 self._thread.join(timeout=0.5)
+    #     except Exception:
+    #         pass
+
+    def submit_task(
+        self,
+        model_name: str = None,
+        task: str = None,
+        data=None,
+        json=None,
+        files=None,
+        params=None,
+        headers=None,
+        wait_for_completion: bool = False,
+        return_result: bool = True,
+    ):
+        """Submit a task to the Gateway and return the task info."""
+        return self._run_async(
+            self._client.submit_task(
+                model_name=model_name,
+                task=task,
+                data=data,
+                json=json,
+                files=files,
+                params=params,
+                headers=headers,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        )
+
+    def process(
+        self,
+        text: str,
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Generate annotations for the provided text."""
+        return self._run_async(
+            self._client.process(
+                text=text,
+                model_name=model_name,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        )
+
+    def process_bulk(
+        self,
+        texts: list[str],
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Generate annotations for a list of texts."""
+        return self._run_async(
+            self._client.process_bulk(
+                texts=texts,
+                model_name=model_name,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        )
+
+    def redact(
+        self,
+        text: str,
+        concepts_to_keep: Iterable[str] = None,
+        warn_on_no_redaction: bool = None,
+        mask: str = None,
+        hash: bool = None,
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Redact sensitive information from the provided text."""
+        return self._run_async(
+            self._client.redact(
+                text=text,
+                concepts_to_keep=concepts_to_keep,
+                warn_on_no_redaction=warn_on_no_redaction,
+                mask=mask,
+                hash=hash,
+                model_name=model_name,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        )
+
+    def get_task(self, task_uuid: str, detail: bool = True):
+        """Get a Gateway task details by its UUID."""
+        return self._run_async(self._client.get_task(task_uuid=task_uuid, detail=detail))
+
+    def get_task_result(self, task_uuid: str, parse: bool = True):
+        """Get the result of a Gateway task by its UUID.
+
+        If parse is True, try to infer and parse the result as JSON, JSONL, or text.
+        Otherwise, return raw bytes.
+        """
+        return self._run_async(self._client.get_task_result(task_uuid=task_uuid, parse=parse))
+
+    def wait_for_task(self, task_uuid: str, detail: bool = True, raise_on_error: bool = False):
+        """Poll Gateway until the task reaches a final state."""
+        return self._run_async(
+            self._client.wait_for_task(
+                task_uuid=task_uuid, detail=detail, raise_on_error=raise_on_error
+            )
+        )
+
+    def get_models(self, verbose: bool = False):
+        """Get the list of available models from the Gateway."""
+        return self._run_async(self._client.get_models(verbose=verbose))
+
+    def get_model(self, model_name: str = None):
+        """Get details of a specific model."""
+        return self._run_async(self._client.get_model(model_name=model_name))
+
+    def deploy_model(
+        self,
+        model_name: str = None,
+        tracking_id: str = None,
+        model_uri: str = None,
+        ttl: int = None,
+    ):
+        """Deploy a CogStack Model Serve model through the Gateway."""
+        return self._run_async(
+            self._client.deploy_model(
+                model_name=model_name,
+                tracking_id=tracking_id,
+                model_uri=model_uri,
+                ttl=ttl,
+            )
+        )

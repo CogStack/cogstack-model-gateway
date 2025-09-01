@@ -1,10 +1,14 @@
 import asyncio
+import concurrent.futures
+import signal
+import threading
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 
-from client.cogstack_model_gateway_client.client import GatewayClient
+from client.cogstack_model_gateway_client.client import GatewayClient, GatewayClientSync
 
 
 @pytest.fixture
@@ -517,3 +521,242 @@ async def test_deploy_model_success(mock_httpx_async_client):
         files=None,
         headers=None,
     )
+
+
+def test_sync_client_without_event_loop(mock_httpx_async_client):
+    """Test GatewayClientSync works when no event loop is running."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = ["model1", "model2"]
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    try:
+        # Should work without a running event loop
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        models = client.get_models()
+        assert models == ["model1", "model2"]
+        assert client._own_loop is True
+    finally:
+        del client
+
+
+def test_sync_client_with_existing_event_loop(mock_httpx_async_client):
+    """Test GatewayClientSync works when an event loop is already running."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = ["model1", "model2"]
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    # Simulate an existing event loop
+    loop = asyncio.new_event_loop()
+    result = {}
+    exception = {}
+
+    def run_loop():
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
+    async def test_in_loop():
+        try:
+            client = GatewayClientSync(base_url="http://test-gateway.com")
+            models = client.get_models()
+            result["models"] = models
+            result["own_loop"] = client._own_loop
+            del client
+        except Exception as e:
+            exception["error"] = e
+
+    loop_thread = threading.Thread(target=run_loop, daemon=True)
+    loop_thread.start()
+    time.sleep(0.1)
+
+    try:
+        future = asyncio.run_coroutine_threadsafe(test_in_loop(), loop)
+        future.result(timeout=10)
+
+        assert "error" not in exception, f"Test failed with error: {exception.get('error')}"
+        assert result["models"] == ["model1", "model2"]
+        assert result["own_loop"] is False
+
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        loop_thread.join(timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_sync_client_in_async_context(mock_httpx_async_client):
+    """Test that GatewayClientSync works even when called from inside an async context."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = ["model1", "model2"]
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    # This test is running in an async context (due to @pytest.mark.asyncio)
+    # Simulate a scenario where the sync client is used within async code
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        models = client.get_models()
+        assert models == ["model1", "model2"]
+        assert client._own_loop is False
+        assert hasattr(client, "_background_loop")
+    finally:
+        del client
+
+
+def test_sync_client_multiple_requests_reuse_resources(mock_httpx_async_client):
+    """Test that multiple requests reuse the same background resources."""
+    _, mock_client_instance = mock_httpx_async_client
+
+    # Mock different responses for different calls and use a function to return them
+    mock_response1 = MagicMock()
+    mock_response1.json.return_value = ["model1", "model2"]
+    mock_response1.raise_for_status.return_value = mock_response1
+
+    mock_response2 = MagicMock()
+    mock_response2.json.return_value = {"name": "model1", "status": "active"}
+    mock_response2.raise_for_status.return_value = mock_response2
+
+    responses = [mock_response1, mock_response2]
+    response_index = 0
+
+    def mock_request(*args, **kwargs):
+        nonlocal response_index
+        if response_index < len(responses):
+            response = responses[response_index]
+            response_index += 1
+            return response
+        else:
+            # If we run out of responses, return the last one
+            return responses[-1]
+
+    mock_client_instance.request.side_effect = mock_request
+
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+
+        # First request
+        models = client.get_models()
+        assert models == ["model1", "model2"]
+
+        # Get references to the background resources if available
+        background_loop = getattr(client, "_background_loop", None)
+        background_thread = getattr(client, "_thread", None)
+
+        # Second request
+        model_info = client.get_model(model_name="model1")
+        assert model_info == {"name": "model1", "status": "active"}
+
+        # If we have background resources, verify they're reused
+        if background_loop is not None:
+            assert client._background_loop is background_loop
+            assert client._thread is background_thread
+
+        # Verify both requests were made
+        assert mock_client_instance.request.call_count == 2
+
+        # Verify the specific URLs were called
+        call_args = [call[1]["url"] for call in mock_client_instance.request.call_args_list]
+        assert "http://test-gateway.com/models/" in call_args[0]  # get_models
+        assert "http://test-gateway.com/models/model1/info" in call_args[1]  # get_model
+
+    finally:
+        del client
+
+
+def test_sync_client_error_handling(mock_httpx_async_client):
+    """Test that errors from async operations are properly propagated."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_client_instance.request.side_effect = httpx.HTTPStatusError(
+        "Server Error", request=httpx.Request("GET", "url"), response=httpx.Response(500)
+    )
+
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        with pytest.raises(httpx.HTTPStatusError):
+            client.get_models()
+    finally:
+        del client
+
+
+def test_sync_client_timeout_handling(mock_httpx_async_client):
+    """Test that timeouts work correctly in the sync client."""
+    _, mock_client_instance = mock_httpx_async_client
+
+    async def slow_response(*args, **kwargs):
+        await asyncio.sleep(2)
+        mock_response = MagicMock()
+        mock_response.json.return_value = ["model1"]
+        mock_response.raise_for_status.return_value = mock_response
+        return mock_response
+
+    mock_client_instance.request.side_effect = slow_response
+
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        start_time = time.time()
+
+        def short_timeout_run_async(coro, client_ref=client):
+            # For own loop case, we can't easily timeout run_until_complete
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Operation timed out")
+
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(1)
+            try:
+                return client_ref._loop.run_until_complete(coro)
+            finally:
+                signal.alarm(0)
+
+        client._run_async = short_timeout_run_async
+
+        with pytest.raises((TimeoutError, concurrent.futures.TimeoutError)):
+            client.get_models()
+
+        elapsed = time.time() - start_time
+        assert elapsed < 2.0  # Should fail faster than the 2 second sleep
+
+    finally:
+        del client
+
+
+def test_no_event_loop_conflict_error(mock_httpx_async_client):
+    """Test that we don't get the event loop conflict errors."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = ["model1", "model2"]
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    loop = asyncio.new_event_loop()
+    errors = []
+
+    def run_with_existing_loop():
+        asyncio.set_event_loop(loop)
+        try:
+            client = GatewayClientSync(base_url="http://test-gateway.com")
+            models = client.get_models()
+            assert models == ["model1", "model2"]
+            del client
+        except Exception as e:
+            errors.append(str(e))
+        finally:
+            loop.call_soon_threadsafe(loop.stop)
+
+    def keep_loop_running():
+        loop.run_forever()
+
+    # Start loop in one thread
+    loop_thread = threading.Thread(target=keep_loop_running, daemon=True)
+    loop_thread.start()
+
+    # Run client in another thread (simulating web app scenario)
+    client_thread = threading.Thread(target=run_with_existing_loop)
+    client_thread.start()
+    client_thread.join(timeout=10)
+
+    loop_thread.join(timeout=2)
+
+    assert len(errors) == 0, f"Unexpected errors: {errors}"
