@@ -14,7 +14,7 @@ class GatewayClient:
         base_url: str,
         default_model: str = None,
         polling_interval: float = 2.0,
-        timeout: float = 300.0,
+        timeout: float | None = None,
     ):
         """Initialize the GatewayClient with the base Gateway URL and optional parameters.
 
@@ -24,9 +24,9 @@ class GatewayClient:
             polling_interval (float, optional): The interval in seconds to poll for task completion.
                 Defaults to 2.0 seconds, with a minimum of 0.5 and maximum of 3.0 seconds.
             timeout (float, optional): The client polling timeout while waiting for task completion.
-                Defaults to 300.0 seconds. A TimeoutError in this case should rarely indicate that
-                something went wrong, but rather that the task is taking longer than expected (e.g.
-                common with long running tasks like training).
+                Defaults to None (no timeout). When set to a float value, a TimeoutError will be
+                raised if the task takes longer than the specified number of seconds. When None,
+                the client will wait indefinitely for task completion.
         """
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
@@ -248,7 +248,7 @@ class GatewayClient:
                     error_message = task.get("error_message", "Unknown error")
                     raise RuntimeError(f"Task '{task_uuid}' failed: {error_message}")
                 return task
-            if asyncio.get_event_loop().time() - start > self.timeout:
+            if self.timeout is not None and asyncio.get_event_loop().time() - start > self.timeout:
                 raise TimeoutError(f"Timed out waiting for task '{task_uuid}' to complete")
             await asyncio.sleep(self.polling_interval)
 
@@ -350,7 +350,7 @@ class GatewayClientSync:
         return self._client.timeout
 
     @timeout.setter
-    def timeout(self, value: float):
+    def timeout(self, value: float | None):
         self._client.timeout = value
 
     def submit_task(

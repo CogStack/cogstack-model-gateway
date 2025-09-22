@@ -42,6 +42,7 @@ async def test_gateway_client_init():
         polling_interval=10,
     )
     assert client.polling_interval == 3.0  # Maximum 3.0 seconds
+    assert client.timeout is None  # Default timeout should be None
 
     client.polling_interval = 0.05
     assert client.polling_interval == 0.5  # Minimum is 0.5 seconds
@@ -366,6 +367,35 @@ async def test_wait_for_task_timeout(mock_httpx_async_client, mocker):
             await client.wait_for_task("task-polling")
 
         assert mock_get_task.await_count >= (client.timeout / client.polling_interval)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_task_no_timeout(mock_httpx_async_client, mocker):
+    """Test wait_for_task doesn't timeout when timeout is None."""
+    call_count = 0
+
+    async def mock_get_task_side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:  # Return pending for first 4 calls
+            return {"uuid": "task-polling", "status": "pending"}
+        else:  # Return succeeded on 5th call
+            return {"uuid": "task-polling", "status": "succeeded"}
+
+    mock_get_task = AsyncMock(side_effect=mock_get_task_side_effect)
+    mocker.patch(
+        "client.cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task
+    )
+    mocker.patch("asyncio.sleep", new=AsyncMock())
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        assert client.timeout is None
+        client.polling_interval = 0.01
+
+        result = await client.wait_for_task("task-polling")
+
+        assert result["status"] == "succeeded"
+        assert mock_get_task.await_count == 5
 
 
 @pytest.mark.asyncio
