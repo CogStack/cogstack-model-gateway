@@ -1,2 +1,3 @@
 from cogstack_model_gateway_client.client import GatewayClient as GatewayClient
 from cogstack_model_gateway_client.client import GatewayClientSync as GatewayClientSync
+from cogstack_model_gateway_client.exceptions import TaskFailedError as TaskFailedError

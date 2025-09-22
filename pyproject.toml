@@ -59,14 +59,14 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint.isort]
-known-local-folder = ["common", "gateway", "scheduler", "client"]
+known-local-folder = ["common", "gateway", "scheduler", "cogstack_model_gateway_client"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
 addopts = "-ra -s --disable-warnings --enable-cmg-logging"
-pythonpath = ["."]
+pythonpath = [".", "client"]
 testpaths = ["tests"]
 
 [build-system]

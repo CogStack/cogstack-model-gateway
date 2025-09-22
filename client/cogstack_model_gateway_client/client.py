@@ -5,7 +5,7 @@ from functools import wraps
 
 import httpx
 
-from cogstack_model_gateway_client.exceptions import retry_if_network_error
+from cogstack_model_gateway_client.exceptions import TaskFailedError, retry_if_network_error
 
 
 class GatewayClient:
@@ -103,7 +103,11 @@ class GatewayClient:
         wait_for_completion: bool = False,
         return_result: bool = True,
     ):
-        """Submit a task to the Gateway and return the task info."""
+        """Submit a task to the Gateway and return the task info.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         model_name = model_name or self.default_model
         if not model_name:
             raise ValueError("Please provide a model name or set a default model for the client.")
@@ -118,7 +122,11 @@ class GatewayClient:
             task_uuid = task_info["uuid"]
             task_info = await self.wait_for_task(task_uuid)
             if return_result:
-                return await self.get_task_result(task_uuid)
+                if task_info.get("status") == "succeeded":
+                    return await self.get_task_result(task_uuid)
+                else:
+                    error_message = task_info.get("error_message", "Unknown error")
+                    raise TaskFailedError(task_uuid, error_message, task_info)
         return task_info
 
     async def process(
@@ -128,7 +136,11 @@ class GatewayClient:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Generate annotations for the provided text."""
+        """Generate annotations for the provided text.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         return await self.submit_task(
             model_name=model_name,
             task="process",
@@ -145,7 +157,11 @@ class GatewayClient:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Generate annotations for a list of texts."""
+        """Generate annotations for a list of texts.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         return await self.submit_task(
             model_name=model_name,
             task="process_bulk",
@@ -166,7 +182,11 @@ class GatewayClient:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Redact sensitive information from the provided text."""
+        """Redact sensitive information from the provided text.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         params = {
             k: v
             for k, v in {
@@ -238,7 +258,12 @@ class GatewayClient:
     async def wait_for_task(
         self, task_uuid: str, detail: bool = True, raise_on_error: bool = False
     ):
-        """Poll Gateway until the task reaches a final state."""
+        """Poll Gateway until the task reaches a final state.
+
+        Raises:
+            TaskFailedError: If raise_on_error=True and the task fails.
+            TimeoutError: If timeout is reached before task completion.
+        """
         start = asyncio.get_event_loop().time()
         while True:
             task = await self.get_task(task_uuid, detail=detail)
@@ -246,7 +271,7 @@ class GatewayClient:
             if status in ("succeeded", "failed"):
                 if status == "failed" and raise_on_error:
                     error_message = task.get("error_message", "Unknown error")
-                    raise RuntimeError(f"Task '{task_uuid}' failed: {error_message}")
+                    raise TaskFailedError(task_uuid, error_message, task)
                 return task
             if self.timeout is not None and asyncio.get_event_loop().time() - start > self.timeout:
                 raise TimeoutError(f"Timed out waiting for task '{task_uuid}' to complete")
@@ -365,7 +390,11 @@ class GatewayClientSync:
         wait_for_completion: bool = False,
         return_result: bool = True,
     ):
-        """Submit a task to the Gateway and return the task info."""
+        """Submit a task to the Gateway and return the task info.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         return asyncio.run(
             self._client.submit_task(
                 model_name=model_name,
@@ -387,7 +416,11 @@ class GatewayClientSync:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Generate annotations for the provided text."""
+        """Generate annotations for the provided text.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         return asyncio.run(
             self._client.process(
                 text=text,
@@ -404,7 +437,11 @@ class GatewayClientSync:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Generate annotations for a list of texts."""
+        """Generate annotations for a list of texts.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         return asyncio.run(
             self._client.process_bulk(
                 texts=texts,
@@ -425,7 +462,11 @@ class GatewayClientSync:
         wait_for_completion: bool = True,
         return_result: bool = True,
     ):
-        """Redact sensitive information from the provided text."""
+        """Redact sensitive information from the provided text.
+
+        Raises:
+            TaskFailedError: If the task fails and wait_for_completion=True, return_result=True.
+        """
         return asyncio.run(
             self._client.redact(
                 text=text,
@@ -452,7 +493,12 @@ class GatewayClientSync:
         return asyncio.run(self._client.get_task_result(task_uuid=task_uuid, parse=parse))
 
     def wait_for_task(self, task_uuid: str, detail: bool = True, raise_on_error: bool = False):
-        """Poll Gateway until the task reaches a final state."""
+        """Poll Gateway until the task reaches a final state.
+
+        Raises:
+            TaskFailedError: If raise_on_error=True and the task fails.
+            TimeoutError: If timeout is reached before task completion.
+        """
         return asyncio.run(
             self._client.wait_for_task(
                 task_uuid=task_uuid, detail=detail, raise_on_error=raise_on_error

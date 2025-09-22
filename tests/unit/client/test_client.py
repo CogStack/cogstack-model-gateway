@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-from client.cogstack_model_gateway_client.client import GatewayClient, GatewayClientSync
+from cogstack_model_gateway_client.client import GatewayClient, GatewayClientSync
+from cogstack_model_gateway_client.exceptions import TaskFailedError
 
 
 @pytest.fixture
@@ -159,11 +160,11 @@ async def test_submit_task_wait_for_completion_and_return_result(mock_httpx_asyn
     mock_client_instance.request.return_value = mock_response
 
     mock_wait_for_task = mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.wait_for_task",
+        "cogstack_model_gateway_client.client.GatewayClient.wait_for_task",
         new=AsyncMock(return_value={"uuid": "task-123", "status": "succeeded"}),
     )
     mock_get_task_result = mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.get_task_result",
+        "cogstack_model_gateway_client.client.GatewayClient.get_task_result",
         new=AsyncMock(return_value="processed text"),
     )
 
@@ -179,6 +180,29 @@ async def test_submit_task_wait_for_completion_and_return_result(mock_httpx_asyn
     assert result == "processed text"
     mock_wait_for_task.assert_awaited_once_with("task-123")
     mock_get_task_result.assert_awaited_once_with("task-123")
+
+    mock_wait_for_task = mocker.patch(
+        "cogstack_model_gateway_client.client.GatewayClient.wait_for_task",
+        new=AsyncMock(
+            return_value={
+                "uuid": "task-123",
+                "status": "failed",
+                "error_message": "Processing failed",
+            }
+        ),
+    )
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        with pytest.raises(TaskFailedError, match="Task 'task-123' failed: Processing failed"):
+            await client.submit_task(
+                model_name="my_model",
+                task="process",
+                data="text",
+                wait_for_completion=True,
+                return_result=True,
+            )
+
+    mock_wait_for_task.assert_awaited_once_with("task-123")
 
 
 @pytest.mark.asyncio
@@ -335,9 +359,7 @@ async def test_wait_for_task_succeeded(mock_httpx_async_client, mocker):
         {"uuid": "task-polling", "status": "pending"},
         {"uuid": "task-polling", "status": "succeeded", "result": "done"},
     ]
-    mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task
-    )
+    mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
@@ -352,9 +374,7 @@ async def test_wait_for_task_succeeded(mock_httpx_async_client, mocker):
 async def test_wait_for_task_timeout(mock_httpx_async_client, mocker):
     """Test wait_for_task raises TimeoutError."""
     mock_get_task = AsyncMock(return_value={"uuid": "task-polling", "status": "pending"})
-    mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task
-    )
+    mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
@@ -383,9 +403,7 @@ async def test_wait_for_task_no_timeout(mock_httpx_async_client, mocker):
             return {"uuid": "task-polling", "status": "succeeded"}
 
     mock_get_task = AsyncMock(side_effect=mock_get_task_side_effect)
-    mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task
-    )
+    mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
@@ -400,19 +418,19 @@ async def test_wait_for_task_no_timeout(mock_httpx_async_client, mocker):
 
 @pytest.mark.asyncio
 async def test_wait_for_task_failed_raise_on_error(mock_httpx_async_client, mocker):
-    """Test wait_for_task raises RuntimeError on task failure with raise_on_error."""
+    """Test wait_for_task raises TaskFailedError on task failure with raise_on_error."""
     mock_get_task = AsyncMock()
     mock_get_task.side_effect = [
         {"uuid": "task-polling", "status": "pending"},
         {"uuid": "task-polling", "status": "failed", "error_message": "Something went wrong"},
     ]
-    mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task
-    )
+    mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
-        with pytest.raises(RuntimeError, match="Task 'task-polling' failed: Something went wrong"):
+        with pytest.raises(
+            TaskFailedError, match="Task 'task-polling' failed: Something went wrong"
+        ):
             await client.wait_for_task("task-polling", raise_on_error=True)
 
         assert mock_get_task.await_count == 2
@@ -426,9 +444,7 @@ async def test_wait_for_task_failed_no_raise_on_error(mock_httpx_async_client, m
         {"uuid": "task-polling", "status": "pending"},
         {"uuid": "task-polling", "status": "failed", "error_message": "Something went wrong"},
     ]
-    mocker.patch(
-        "client.cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task
-    )
+    mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
