@@ -536,58 +536,43 @@ def test_sync_client_without_event_loop(mock_httpx_async_client):
         client = GatewayClientSync(base_url="http://test-gateway.com")
         models = client.get_models()
         assert models == ["model1", "model2"]
-        assert client._own_loop is True
+        assert hasattr(client, "_client")
     finally:
         del client
 
 
 def test_sync_client_with_existing_event_loop(mock_httpx_async_client):
-    """Test GatewayClientSync works when an event loop is already running."""
+    """Test GatewayClientSync works when an event loop is already running in a different thread."""
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = ["model1", "model2"]
     mock_response.raise_for_status.return_value = mock_response
     mock_client_instance.request.return_value = mock_response
 
-    # Simulate an existing event loop
-    loop = asyncio.new_event_loop()
     result = {}
     exception = {}
 
-    def run_loop():
-        asyncio.set_event_loop(loop)
-        loop.run_forever()
-
-    async def test_in_loop():
+    def test_from_different_thread():
         try:
             client = GatewayClientSync(base_url="http://test-gateway.com")
             models = client.get_models()
             result["models"] = models
-            result["own_loop"] = client._own_loop
             del client
         except Exception as e:
             exception["error"] = e
 
-    loop_thread = threading.Thread(target=run_loop, daemon=True)
-    loop_thread.start()
-    time.sleep(0.1)
+    # Run the test in a separate thread
+    test_thread = threading.Thread(target=test_from_different_thread)
+    test_thread.start()
+    test_thread.join(timeout=10)
 
-    try:
-        future = asyncio.run_coroutine_threadsafe(test_in_loop(), loop)
-        future.result(timeout=10)
-
-        assert "error" not in exception, f"Test failed with error: {exception.get('error')}"
-        assert result["models"] == ["model1", "model2"]
-        assert result["own_loop"] is False
-
-    finally:
-        loop.call_soon_threadsafe(loop.stop)
-        loop_thread.join(timeout=2)
+    assert "error" not in exception, f"Test failed with error: {exception.get('error')}"
+    assert result["models"] == ["model1", "model2"]
 
 
 @pytest.mark.asyncio
 async def test_sync_client_in_async_context(mock_httpx_async_client):
-    """Test that GatewayClientSync works even when called from inside an async context."""
+    """Test that GatewayClientSync correctly rejects usage from within an async context."""
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
     mock_response.json.return_value = ["model1", "model2"]
@@ -595,15 +580,8 @@ async def test_sync_client_in_async_context(mock_httpx_async_client):
     mock_client_instance.request.return_value = mock_response
 
     # This test is running in an async context (due to @pytest.mark.asyncio)
-    # Simulate a scenario where the sync client is used within async code
-    try:
-        client = GatewayClientSync(base_url="http://test-gateway.com")
-        models = client.get_models()
-        assert models == ["model1", "model2"]
-        assert client._own_loop is False
-        assert hasattr(client, "_background_loop")
-    finally:
-        del client
+    with pytest.raises(RuntimeError, match="can't be used inside an async context"):
+        _ = GatewayClientSync(base_url="http://test-gateway.com")
 
 
 def test_sync_client_multiple_requests_reuse_resources(mock_httpx_async_client):
@@ -698,22 +676,17 @@ def test_sync_client_timeout_handling(mock_httpx_async_client):
         client = GatewayClientSync(base_url="http://test-gateway.com")
         start_time = time.time()
 
-        def short_timeout_run_async(coro, client_ref=client):
-            # For own loop case, we can't easily timeout run_until_complete
-            def timeout_handler(signum, frame):
-                raise TimeoutError("Operation timed out")
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Operation timed out")
 
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(1)
-            try:
-                return client_ref._loop.run_until_complete(coro)
-            finally:
-                signal.alarm(0)
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(1)
 
-        client._run_async = short_timeout_run_async
-
-        with pytest.raises((TimeoutError, concurrent.futures.TimeoutError)):
-            client.get_models()
+        try:
+            with pytest.raises((TimeoutError, concurrent.futures.TimeoutError)):
+                client.get_models()
+        finally:
+            signal.alarm(0)  # Cancel the alarm
 
         elapsed = time.time() - start_time
         assert elapsed < 2.0  # Should fail faster than the 2 second sleep
