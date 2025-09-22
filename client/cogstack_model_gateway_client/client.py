@@ -1,5 +1,6 @@
 import asyncio
 import json
+import warnings
 from collections.abc import Iterable
 from functools import wraps
 
@@ -331,6 +332,10 @@ class GatewayClientSync:
             if "no running event loop" not in str(e):
                 raise
 
+        is_ipython, _ = self._is_running_in_ipython_or_jupyter()
+        if is_ipython:
+            self._warn_about_ipython_usage()
+
         self._client = GatewayClient(*args, **kwargs)
         self._initialized = False
 
@@ -342,6 +347,46 @@ class GatewayClientSync:
                 raise async_ctx_err
             else:
                 raise
+
+    def _is_running_in_ipython_or_jupyter(self):
+        """Detect if client is running inside an IPython or Jupyter environment."""
+        try:
+            import IPython
+
+            ipython_instance = IPython.get_ipython()
+            if ipython_instance is not None:
+                if hasattr(ipython_instance, "kernel"):
+                    return True, "Jupyter"
+                else:
+                    return True, "IPython"
+        except ImportError:
+            pass
+
+        try:
+            import sys
+
+            if "ipykernel" in sys.modules:
+                return True, "Jupyter"
+        except ImportError:
+            pass
+
+        return False, None
+
+    def _warn_about_ipython_usage(self):
+        """Issue a warning about using GatewayClientSync in IPython/Jupyter environments."""
+        warnings.warn(
+            "You are using GatewayClientSync in an IPython/Jupyter environment."
+            " This may cause 'RuntimeError: Event loop is closed' on subsequent calls."
+            " Consider using the async GatewayClient with 'await' syntax instead:\n\n"
+            "  async with GatewayClient(...) as client:\n"
+            "      result = await client.process(text)\n\n"
+            "Or use nest_asyncio to allow nested event loops:\n\n"
+            "  import nest_asyncio\n"
+            "  nest_asyncio.apply()\n"
+            "  client = GatewayClientSync(...)\n",
+            UserWarning,
+            stacklevel=3,
+        )
 
     def __del__(self):
         if hasattr(self, "_client") and self._client and getattr(self, "_initialized", False):
