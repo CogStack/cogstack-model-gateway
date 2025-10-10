@@ -2,7 +2,7 @@ import logging
 from contextlib import contextmanager
 
 from sqlalchemy.exc import ProgrammingError
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, text
 
 log = logging.getLogger("cmg.common")
 
@@ -42,3 +42,13 @@ class DatabaseManager:
         """Get a database session."""
         with Session(self.engine) as session:
             yield session
+
+    def health_check(self) -> bool:
+        """Perform a health check by executing a simple query."""
+        try:
+            with self.get_session() as session:
+                session.exec(text("SELECT 1"))
+            return True
+        except Exception as e:
+            log.error("Health check failed for database: %s", e)
+            return False

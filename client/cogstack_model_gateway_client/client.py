@@ -312,6 +312,43 @@ class GatewayClient:
         resp = await self._request("POST", url, json=data)
         return resp.json()
 
+    @require_client
+    async def health_check(self):
+        """Check if the Gateway and its components are healthy and responsive.
+
+        Returns:
+            dict: Health status information with 'status' and 'components' fields.
+                  Status will be 'healthy' or 'unhealthy'.
+
+        Raises:
+            httpx.HTTPStatusError: For HTTP errors other than 503 Service Unavailable.
+            Other exceptions: For network errors, timeouts, etc.
+        """
+        url = f"{self.base_url}/health"
+        try:
+            resp = await self._request("GET", url)
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 503:
+                try:
+                    return e.response.json()
+                except Exception:
+                    return {"status": "unhealthy", "error": "Service unavailable"}
+            raise
+
+    @require_client
+    async def is_healthy(self):
+        """Check if the Gateway and its components are healthy.
+
+        Returns:
+            bool: True if overall status is 'healthy', False otherwise.
+        """
+        try:
+            health_data = await self.health_check()
+            return health_data.get("status") == "healthy"
+        except Exception:
+            return False
+
 
 class GatewayClientSync:
     """A simplified synchronous wrapper around the async GatewayClient.
@@ -574,3 +611,24 @@ class GatewayClientSync:
                 ttl=ttl,
             )
         )
+
+    def health_check(self):
+        """Check if the Gateway and its components are healthy and responsive.
+
+        Returns:
+            dict: Health status information with 'status' and 'components' fields.
+                  Status will be 'healthy' or 'unhealthy'.
+
+        Raises:
+            httpx.HTTPStatusError: For HTTP errors other than 503 Service Unavailable.
+            Other exceptions: For network errors, timeouts, etc.
+        """
+        return asyncio.run(self._client.health_check())
+
+    def is_healthy(self):
+        """Check if the Gateway and its components are healthy.
+
+        Returns:
+            bool: True if overall status is 'healthy', False otherwise.
+        """
+        return asyncio.run(self._client.is_healthy())

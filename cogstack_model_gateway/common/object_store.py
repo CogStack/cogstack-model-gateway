@@ -88,3 +88,12 @@ class ObjectStoreManager:
         """Get a presigned URL for the specified object."""
         bucket_name = bucket_name if bucket_name else self.default_bucket
         return self.client.presigned_get_object(bucket_name, object_key, expires=expires)
+
+    def health_check(self) -> bool:
+        """Perform a health check by listing objects in the configured default bucket."""
+        try:
+            self.client.list_objects(self.default_bucket, extra_query_params={"max-keys": "1"})
+            return True
+        except Exception as e:
+            log.error("Health check failed for bucket '%s': %s", self.default_bucket, e)
+            return False

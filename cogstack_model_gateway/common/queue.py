@@ -178,3 +178,11 @@ class QueueManager:
             return queue.method.message_count == 0
         except pika.exceptions.ChannelClosed:
             return True
+
+    @with_connection
+    def health_check(self) -> bool:
+        """Perform a health check by verifying a connection can be established."""
+        healthy = self.connection and not self.connection.is_closed
+        if not healthy:
+            log.error("Health check failed for queue '%s'", self.queue_name)
+        return healthy

@@ -91,6 +91,24 @@ def test_root(client: TestClient):
     assert response.json() == {"message": "Enter the cult... I mean, the API."}
 
 
+def test_health_check(client: TestClient):
+    response = client.get("/health")
+    assert response.status_code == 200
+
+    health_data = response.json()
+    assert "status" in health_data
+    assert "components" in health_data
+
+    expected_components = ["database", "task_object_store", "results_object_store", "queue"]
+    for component in expected_components:
+        assert component in health_data["components"]
+
+    # In a properly configured test environment, all components should be healthy
+    assert health_data["status"] == "healthy"
+    for component in expected_components:
+        assert health_data["components"][component] == "healthy"
+
+
 def test_get_tasks(client: TestClient):
     response = client.get("/tasks/")
     assert response.status_code == 403

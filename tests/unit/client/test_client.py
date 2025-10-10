@@ -569,6 +569,152 @@ async def test_deploy_model_success(mock_httpx_async_client):
     )
 
 
+@pytest.mark.asyncio
+async def test_health_check_success(mock_httpx_async_client):
+    """Test health_check for successful health status retrieval."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "status": "healthy",
+        "components": {
+            "database": "healthy",
+            "task_object_store": "healthy",
+            "results_object_store": "healthy",
+            "queue": "healthy",
+        },
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        health_status = await client.health_check()
+
+    assert health_status["status"] == "healthy"
+    assert "components" in health_status
+    assert health_status["components"]["database"] == "healthy"
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/health",
+        params=None,
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_health_check_unhealthy_503_with_json(mock_httpx_async_client):
+    """Test health_check when service is unhealthy (503) but returns health details."""
+    _, mock_client_instance = mock_httpx_async_client
+
+    mock_503_response = MagicMock()
+    mock_503_response.status_code = 503
+    mock_503_response.json.return_value = {
+        "status": "unhealthy",
+        "components": {
+            "database": "unhealthy",
+            "task_object_store": "healthy",
+            "results_object_store": "healthy",
+            "queue": "healthy",
+        },
+    }
+
+    mock_response = MagicMock()
+    http_error = httpx.HTTPStatusError(
+        "Service Unavailable", request=httpx.Request("GET", "url"), response=mock_503_response
+    )
+    mock_response.raise_for_status.side_effect = http_error
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        health_status = await client.health_check()
+
+    assert health_status["status"] == "unhealthy"
+    assert health_status["components"]["database"] == "unhealthy"
+    assert health_status["components"]["task_object_store"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_health_check_unhealthy_503_without_json(mock_httpx_async_client):
+    """Test health_check when service returns 503 without valid JSON."""
+    _, mock_client_instance = mock_httpx_async_client
+
+    mock_503_response = MagicMock()
+    mock_503_response.status_code = 503
+    mock_503_response.json.side_effect = Exception("Invalid JSON")
+
+    mock_response = MagicMock()
+    http_error = httpx.HTTPStatusError(
+        "Service Unavailable", request=httpx.Request("GET", "url"), response=mock_503_response
+    )
+    mock_response.raise_for_status.side_effect = http_error
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        health_status = await client.health_check()
+
+    assert health_status["status"] == "unhealthy"
+    assert health_status["error"] == "Service unavailable"
+
+
+@pytest.mark.asyncio
+async def test_health_check_other_http_error(mock_httpx_async_client):
+    """Test health_check when service returns non-503 HTTP error."""
+    _, mock_client_instance = mock_httpx_async_client
+
+    mock_response = MagicMock()
+    http_error = httpx.HTTPStatusError(
+        "Internal Server Error", request=httpx.Request("GET", "url"), response=httpx.Response(500)
+    )
+    mock_response.raise_for_status.side_effect = http_error
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        # Should re-raise non-503 HTTP errors
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.health_check()
+
+
+@pytest.mark.asyncio
+async def test_is_healthy(mock_httpx_async_client, mocker):
+    """Test is_healthy convenience method."""
+    mock_health_check = mocker.patch(
+        "cogstack_model_gateway_client.client.GatewayClient.health_check",
+        new=AsyncMock(return_value={"status": "healthy", "components": {}}),
+    )
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        is_healthy = await client.is_healthy()
+
+    assert is_healthy is True
+    mock_health_check.assert_awaited_once()
+
+    # Test unhealthy status
+    mock_health_check = mocker.patch(
+        "cogstack_model_gateway_client.client.GatewayClient.health_check",
+        new=AsyncMock(return_value={"status": "unhealthy", "components": {}}),
+    )
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        is_healthy = await client.is_healthy()
+
+    assert is_healthy is False
+    mock_health_check.assert_awaited_once()
+
+    # Test exception handling
+    mock_health_check = mocker.patch(
+        "cogstack_model_gateway_client.client.GatewayClient.health_check",
+        new=AsyncMock(side_effect=Exception("Network error")),
+    )
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        is_healthy = await client.is_healthy()
+
+    assert is_healthy is False
+    mock_health_check.assert_awaited_once()
+
+
 def test_sync_client_without_event_loop(mock_httpx_async_client):
     """Test GatewayClientSync works when no event loop is running."""
     _, mock_client_instance = mock_httpx_async_client
@@ -701,6 +847,79 @@ def test_sync_client_error_handling(mock_httpx_async_client):
         client = GatewayClientSync(base_url="http://test-gateway.com")
         with pytest.raises(httpx.HTTPStatusError):
             client.get_models()
+    finally:
+        del client
+
+
+def test_sync_client_health_check(mock_httpx_async_client):
+    """Test health_check method for sync client."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "status": "healthy",
+        "components": {
+            "database": "healthy",
+            "task_object_store": "healthy",
+            "results_object_store": "healthy",
+            "queue": "healthy",
+        },
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        health_status = client.health_check()
+
+        assert health_status["status"] == "healthy"
+        assert "components" in health_status
+        assert health_status["components"]["database"] == "healthy"
+
+        call_args = mock_client_instance.request.call_args_list
+        assert len(call_args) == 1
+        assert call_args[0][1]["url"] == "http://test-gateway.com/health"
+        assert call_args[0][1]["method"] == "GET"
+    finally:
+        del client
+
+    # Test unhealthy 503 response with JSON body
+    mock_503_response = MagicMock()
+    mock_503_response.status_code = 503
+    mock_503_response.json.return_value = {
+        "status": "unhealthy",
+        "components": {"database": "unhealthy"},
+    }
+
+    mock_response = MagicMock()
+    http_error = httpx.HTTPStatusError(
+        "Service Unavailable", request=httpx.Request("GET", "url"), response=mock_503_response
+    )
+    mock_response.raise_for_status.side_effect = http_error
+    mock_client_instance.request.return_value = mock_response
+
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        health_status = client.health_check()
+
+        assert health_status["status"] == "unhealthy"
+        assert health_status["components"]["database"] == "unhealthy"
+    finally:
+        del client
+
+
+def test_sync_client_is_healthy(mock_httpx_async_client):
+    """Test is_healthy method for sync client."""
+    _, mock_client_instance = mock_httpx_async_client
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"status": "healthy", "components": {}}
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    try:
+        client = GatewayClientSync(base_url="http://test-gateway.com")
+        is_healthy = client.is_healthy()
+        assert is_healthy is True
     finally:
         del client
 

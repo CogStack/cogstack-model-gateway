@@ -3,10 +3,10 @@ import os
 from contextlib import asynccontextmanager
 
 import urllib3
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from prometheus_client import CollectorRegistry, make_asgi_app, multiprocess
 
-from cogstack_model_gateway.common.config import load_config
+from cogstack_model_gateway.common.config import get_config, load_config
 from cogstack_model_gateway.common.db import DatabaseManager
 from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
@@ -99,3 +99,41 @@ async def prometheus_request_counter(request, call_next):
 async def root():
     """Root endpoint for the gateway API."""
     return {"message": "Enter the cult... I mean, the API."}
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint that verifies the status of critical components."""
+    try:
+        config = get_config()
+
+        components_to_check = {
+            "database": config.database_manager,
+            "task_object_store": config.task_object_store_manager,
+            "results_object_store": config.results_object_store_manager,
+            "queue": config.queue_manager,
+        }
+
+        component_status = {
+            name: "healthy" if manager.health_check() else "unhealthy"
+            for name, manager in components_to_check.items()
+        }
+
+        overall_status = (
+            "healthy"
+            if all(status == "healthy" for status in component_status.values())
+            else "unhealthy"
+        )
+
+        health_status = {"status": overall_status, "components": component_status}
+
+        if overall_status == "unhealthy":
+            raise HTTPException(status_code=503, detail=health_status)
+
+        return health_status
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "unhealthy", "error": f"Failed to perform health check: {str(e)}"},
+        )
