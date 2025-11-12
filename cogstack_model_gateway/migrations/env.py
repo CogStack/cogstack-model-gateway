@@ -22,6 +22,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+from cogstack_model_gateway.common.models import Model  # noqa: E402, F401
 from cogstack_model_gateway.common.tasks import SQLModel, Task  # noqa: E402, F401
 
 target_metadata = SQLModel.metadata
