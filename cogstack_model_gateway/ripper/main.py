@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,17 +9,9 @@ from dateutil import parser
 from docker.models.containers import Container
 from prometheus_client import start_http_server
 
-from cogstack_model_gateway.common.containers import (
-    IS_MODEL_LABEL,
-    MANAGED_BY_LABEL,
-    MANAGED_BY_LABEL_VALUE,
-    TTL_LABEL,
-)
+from cogstack_model_gateway.common.config import load_config
 from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.ripper.prometheus.metrics import containers_purged_total
-
-PURGE_INTERVAL = int(os.getenv("CMG_RIPPER_INTERVAL") or 60)
-METRICS_PORT = int(os.getenv("CMG_RIPPER_METRICS_PORT") or 8002)
 
 log = logging.getLogger("cmg.ripper")
 
@@ -33,7 +24,7 @@ def stop_and_remove_container(container: Container):
     containers_purged_total.inc()
 
 
-def purge_expired_containers():
+def purge_expired_containers(config):
     """Run periodically and purge Docker containers that have exceeded their TTL.
 
     List Docker containers and fetch the ones managed by the CogStack Model Gateway that correspond
@@ -48,14 +39,19 @@ def purge_expired_containers():
         now = datetime.now(UTC)
 
         containers = client.containers.list(
-            filters={"label": [f"{MANAGED_BY_LABEL}={MANAGED_BY_LABEL_VALUE}", IS_MODEL_LABEL]},
+            filters={
+                "label": [
+                    f"{config.labels.managed_by_label}={config.labels.managed_by_value}",
+                    config.labels.cms_model_label,
+                ]
+            },
         )
 
         with ThreadPoolExecutor() as executor:
             futures = []
             for container in containers:
                 container: Container
-                ttl = int(container.labels.get(TTL_LABEL, -1))
+                ttl = int(container.labels.get(config.labels.ttl_label, -1))
 
                 if ttl == -1:
                     continue  # Skip containers with TTL set to -1
@@ -69,16 +65,18 @@ def purge_expired_containers():
             for future in as_completed(futures):
                 future.result()
 
-        time.sleep(PURGE_INTERVAL)
+        time.sleep(config.ripper.interval)
 
 
 def main():
     """Run the ripper service."""
     configure_logging()
+    config = load_config()
 
-    start_http_server(METRICS_PORT)
+    start_http_server(config.ripper.metrics_port)
 
-    purge_expired_containers()
+    log.info(f"Starting ripper with interval={config.ripper.interval}s")
+    purge_expired_containers(config)
 
 
 if __name__ == "__main__":

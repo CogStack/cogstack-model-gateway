@@ -3,12 +3,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cogstack_model_gateway.common.containers import (
-    IS_MODEL_LABEL,
-    MANAGED_BY_LABEL,
-    MANAGED_BY_LABEL_VALUE,
-    TTL_LABEL,
-)
 from cogstack_model_gateway.ripper.main import purge_expired_containers, stop_and_remove_container
 
 
@@ -24,11 +18,18 @@ def test_stop_and_remove_container():
 @patch("cogstack_model_gateway.ripper.main.docker.from_env")
 @patch("cogstack_model_gateway.ripper.main.time.sleep", side_effect=KeyboardInterrupt)
 def test_purge_expired_containers(mock_sleep, mock_docker):
+    mock_config = MagicMock()
+    mock_config.labels.managed_by_label = "org.cogstack.model-gateway.managed-by"
+    mock_config.labels.managed_by_value = "cmg"
+    mock_config.labels.cms_model_label = "org.cogstack.model-serve"
+    mock_config.labels.ttl_label = "org.cogstack.model-gateway.ttl"
+    mock_config.ripper.interval = 60
+
     mock_container = MagicMock()
     mock_container.labels = {
-        MANAGED_BY_LABEL: MANAGED_BY_LABEL_VALUE,
-        IS_MODEL_LABEL: "test_model",
-        TTL_LABEL: "10",
+        "org.cogstack.model-gateway.managed-by": "cmg",
+        "org.cogstack.model-serve": "test_model",
+        "org.cogstack.model-gateway.ttl": "10",
     }
     mock_container.attrs = {"Created": f"{(datetime.now(UTC) - timedelta(seconds=20)).isoformat()}"}
 
@@ -38,10 +39,15 @@ def test_purge_expired_containers(mock_sleep, mock_docker):
     mock_docker.return_value = mock_client
 
     with pytest.raises(KeyboardInterrupt):
-        purge_expired_containers()
+        purge_expired_containers(mock_config)
 
     mock_client.containers.list.assert_called_once_with(
-        filters={"label": [f"{MANAGED_BY_LABEL}={MANAGED_BY_LABEL_VALUE}", IS_MODEL_LABEL]},
+        filters={
+            "label": [
+                f"{mock_config.labels.managed_by_label}={mock_config.labels.managed_by_value}",
+                mock_config.labels.cms_model_label,
+            ]
+        },
     )
     mock_container.stop.assert_called_once()
     mock_container.remove.assert_called_once()

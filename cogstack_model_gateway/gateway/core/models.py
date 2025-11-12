@@ -3,14 +3,10 @@ import os
 import docker
 from docker.models.containers import Container
 
+from cogstack_model_gateway.common.config import get_config
 from cogstack_model_gateway.common.containers import (
-    IS_MODEL_LABEL,
-    MANAGED_BY_LABEL,
-    MANAGED_BY_LABEL_VALUE,
-    MODEL_URI_LABEL,
     PROJECT_NAME_LABEL,
     SERVICE_NAME_LABEL,
-    TTL_LABEL,
 )
 
 CMS_PROJECT_ENV_VAR = "CMS_PROJECT_NAME"
@@ -19,6 +15,7 @@ CMS_DOCKER_NETWORK = "cogstack-model-serve_cms"
 
 def get_running_models(cms_project: str) -> list[dict]:
     """Get a list of running containers corresponding to model servers."""
+    config = get_config()
     client = docker.from_env()
     if not cms_project:
         raise ValueError(
@@ -29,11 +26,14 @@ def get_running_models(cms_project: str) -> list[dict]:
     containers = client.containers.list(
         filters={
             "status": "running",
-            "label": [IS_MODEL_LABEL, f"{PROJECT_NAME_LABEL}={cms_project}"],
+            "label": [config.labels.cms_model_label, f"{PROJECT_NAME_LABEL}={cms_project}"],
         }
     )
     return [
-        {"name": c.labels.get(SERVICE_NAME_LABEL, c.name), "uri": c.labels.get(MODEL_URI_LABEL)}
+        {
+            "name": c.labels.get(SERVICE_NAME_LABEL, c.name),
+            "uri": c.labels.get(config.labels.cms_model_uri_label),
+        }
         for c in containers
     ]
 
@@ -48,6 +48,7 @@ def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: 
     expiration time. Apart from that, it's configured in the same way as the services included in
     the CogStack Model Serve stack.
     """
+    config = get_config()
     client = docker.from_env()
     if not cms_project:
         raise ValueError(
@@ -60,10 +61,10 @@ def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: 
         # set it explicitly here to ensure that model servers deployed through the gateway can be
         # identified/listed/deleted in the same way as the ones deployed through Docker compose.
         PROJECT_NAME_LABEL: cms_project,
-        IS_MODEL_LABEL: model_name,
-        MODEL_URI_LABEL: model_uri,
-        TTL_LABEL: str(ttl),
-        MANAGED_BY_LABEL: MANAGED_BY_LABEL_VALUE,
+        config.labels.cms_model_label: model_name,
+        config.labels.cms_model_uri_label: model_uri,
+        config.labels.ttl_label: str(ttl),
+        config.labels.managed_by_label: config.labels.managed_by_value,
     }
 
     base_cmd = "python cli/cli.py serve"

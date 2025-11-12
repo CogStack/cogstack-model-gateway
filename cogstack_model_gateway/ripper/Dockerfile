@@ -20,12 +20,12 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --only ripper --no-root --no-directory
+RUN poetry install --only main --no-root --no-directory
 
 COPY cogstack_model_gateway/common ./cogstack_model_gateway/common
 COPY cogstack_model_gateway/ripper ./cogstack_model_gateway/ripper
 COPY config.json README.md ./
 
-RUN poetry install --only ripper
+RUN poetry install --only main
 
 CMD ["poetry", "run", "python3", "cogstack_model_gateway/ripper/main.py"]

@@ -20,37 +20,37 @@ def initialize_connections(
     """Initialize database, object store, queue, and task manager connections for the scheduler."""
     log.info("Initializing database and queue connections")
     dbm = DatabaseManager(
-        user=config.cmg.db_user,
-        password=config.cmg.db_password,
-        host=config.cmg.db_host,
-        port=config.cmg.db_port,
-        db_name=config.cmg.db_name,
+        user=config.db.user,
+        password=config.db.password,
+        host=config.db.host,
+        port=config.db.port,
+        db_name=config.db.name,
     )
     dbm.init_db()
 
     task_osm = ObjectStoreManager(
-        host=config.cmg.object_store_host,
-        port=config.cmg.object_store_port,
-        access_key=config.cmg.object_store_access_key,
-        secret_key=config.cmg.object_store_secret_key,
-        default_bucket=config.cmg.object_store_bucket_tasks,
+        host=config.object_store.host,
+        port=config.object_store.port,
+        access_key=config.object_store.access_key,
+        secret_key=config.object_store.secret_key,
+        default_bucket=config.object_store.bucket_tasks,
     )
 
     results_osm = ObjectStoreManager(
-        host=config.cmg.object_store_host,
-        port=config.cmg.object_store_port,
-        access_key=config.cmg.object_store_access_key,
-        secret_key=config.cmg.object_store_secret_key,
-        default_bucket=config.cmg.object_store_bucket_results,
+        host=config.object_store.host,
+        port=config.object_store.port,
+        access_key=config.object_store.access_key,
+        secret_key=config.object_store.secret_key,
+        default_bucket=config.object_store.bucket_results,
     )
 
     qm = QueueManager(
-        user=config.cmg.queue_user,
-        password=config.cmg.queue_password,
-        host=config.cmg.queue_host,
-        port=config.cmg.queue_port,
-        queue_name=config.cmg.queue_name,
-        max_concurrent_tasks=int(config.cmg.scheduler_max_concurrent_tasks),
+        user=config.queue.user,
+        password=config.queue.password,
+        host=config.queue.host,
+        port=config.queue.port,
+        queue_name=config.queue.name,
+        max_concurrent_tasks=config.scheduler.max_concurrent_tasks,
     )
     qm.init_queue()
 
@@ -69,7 +69,7 @@ def main():
     config = load_config()
     connections = initialize_connections(config)
 
-    start_http_server(int(config.cmg.scheduler_metrics_port))
+    start_http_server(config.scheduler.metrics_port)
 
     scheduler = Scheduler(
         task_object_store_manager=connections[1],
