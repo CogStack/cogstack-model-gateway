@@ -105,6 +105,15 @@ log = logging.getLogger("cmg.gateway")
 router = APIRouter()
 
 
+def _record_model_usage(model_name: str, model_manager: ModelManager) -> None:
+    """Record model usage or create static model entry if not tracked."""
+    if model_manager.record_model_usage(model_name) is None:
+        log.info(f"Model '{model_name}' not found in database, creating static deployment entry")
+        model_manager.create_model(
+            model_name=model_name, deployment_type=ModelDeploymentType.STATIC
+        )
+
+
 @router.get(
     "/models/",
     response_model=list[dict],
@@ -136,7 +145,7 @@ async def get_models(
     tags=["models"],
     name="Get information about a running CogStack Model Serve instance",
 )
-async def get_model_info(model_name: str):
+async def get_model_info(model_name: str, config: Annotated[Config, Depends(get_config)]):
     """Get information about a running model server through its `/info` API."""
     gateway_tasks_processed_total.labels(model=model_name, task="info").inc()
     # FIXME: Enable SSL verification when certificates are properly set up
@@ -152,6 +161,7 @@ async def get_model_info(model_name: str):
     except requests.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+    _record_model_usage(model_name, config.model_manager)
     return response.json()
 
 
@@ -383,6 +393,7 @@ async def execute_task(
     qm: QueueManager = config.queue_manager
     qm.publish(task_dict, priority)
 
+    _record_model_usage(model_name, config.model_manager)
     gateway_tasks_processed_total.labels(model=model_name, task=task).inc()
 
     return {"uuid": task_uuid, "status": "Task submitted successfully"}
