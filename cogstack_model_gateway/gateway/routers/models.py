@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Requ
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from cogstack_model_gateway.common.config import Config, get_config
+from cogstack_model_gateway.common.models import ModelDeploymentType, ModelManager
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
@@ -180,11 +181,12 @@ async def deploy_model(
         int | None,
         Body(
             description=(
-                "The deployed model will be deleted after TTL seconds (defaults to 86400, i.e. 1d)."
+                "The deployed model will be deleted after TTL seconds."
                 " Set -1 as the TTL value to protect the model from being deleted."
+                " If not provided, uses the default from manual deployment config."
             )
         ),
-    ] = 86400,
+    ] = None,
 ):
     """Deploy a CogStack Model Serve instance with a given model URI or tracking ID.
 
@@ -194,19 +196,32 @@ async def deploy_model(
     fetch the model URI if not provided explicitly. The model is deployed as a Docker container
     with the specified name and the CogStack Model Serve image. The container is labelled with the
     model URI, the project name, and the TTL value to determine its expiration time.
+
+    A corresponding Model database entry is created to track usage and enable lifecycle management.
     """
+    tc = TrackingClient()
+    manual_config = config.get_manual_deployment_config()
+
     if not tracking_id and not model_uri:
         raise HTTPException(
             status_code=400, detail="At least one of tracking_id or model_uri must be provided."
         )
 
     if not model_uri and tracking_id:
-        tc = TrackingClient()
         model_uri = tc.get_model_uri(tracking_id)
         if not model_uri:
             raise HTTPException(
                 status_code=404, detail=f"Model not found for tracking ID '{tracking_id}'."
             )
+
+    if manual_config.require_model_uri_validation and model_uri:
+        model_metadata = tc.get_model_metadata(model_uri)
+        if model_metadata is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model URI '{model_uri}' could not be validated. Model may not exist.",
+            )
+        log.debug(f"Validated model URI '{model_uri}': {model_metadata}")
 
     if any(model["name"] == model_name for model in get_running_models(config.cms.project_name)):
         raise HTTPException(
@@ -217,8 +232,34 @@ async def deploy_model(
             ),
         )
 
+    if ttl is None:
+        ttl = manual_config.default_ttl
+    elif not manual_config.allow_ttl_override:
+        raise HTTPException(
+            status_code=403,
+            detail="TTL override is not allowed. Remove ttl parameter or contact administrator.",
+        )
+    elif manual_config.max_ttl is not None and ttl > manual_config.max_ttl and ttl != -1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"TTL exceeds maximum allowed value of {manual_config.max_ttl} seconds.",
+        )
+
     try:
-        container = run_model_container(model_name, model_uri, ttl, config.cms.project_name)
+        container = run_model_container(
+            model_name=model_name,
+            model_uri=model_uri,
+            ttl=ttl,
+            cms_project=config.cms.project_name,
+            deployment_type=ModelDeploymentType.MANUAL,
+            resources=None,  # TODO: Add resource limits support for manual deployments
+        )
+
+        model_manager: ModelManager = config.model_manager
+        model_manager.create_model(
+            model_name=model_name, deployment_type=ModelDeploymentType.MANUAL
+        )
+
     except DockerException as e:
         log.error(f"Failed to deploy model '{model_name}': {str(e)}")
         raise HTTPException(

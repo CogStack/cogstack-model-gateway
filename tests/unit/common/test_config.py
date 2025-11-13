@@ -173,6 +173,7 @@ def test_config_runtime_managers():
     # Initially None
     assert config.database_manager is None
     assert config.task_manager is None
+    assert config.model_manager is None
     assert config.task_object_store_manager is None
     assert config.results_object_store_manager is None
     assert config.queue_manager is None

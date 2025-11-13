@@ -4,13 +4,34 @@ import docker
 from docker.models.containers import Container
 
 from cogstack_model_gateway.common.config import get_config
-from cogstack_model_gateway.common.containers import (
-    PROJECT_NAME_LABEL,
-    SERVICE_NAME_LABEL,
-)
+from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL, SERVICE_NAME_LABEL
+from cogstack_model_gateway.common.models import ModelDeploymentType
 
 CMS_PROJECT_ENV_VAR = "CMS_PROJECT_NAME"
 CMS_DOCKER_NETWORK = "cogstack-model-serve_cms"
+
+
+def _parse_cpus_to_nano(cpus_str: str) -> int:
+    """Parse Docker CPU string (e.g., '2.0', '0.5') to nano CPUs.
+
+    Docker API expects CPU limits as nano_cpus (1 CPU = 1e9 nano CPUs).
+
+    Args:
+        cpus_str: CPU specification like '2.0', '1.5', '0.5'.
+
+    Returns:
+        CPU count in nano CPUs (integer).
+
+    Raises:
+        ValueError: If the CPU format is invalid.
+    """
+    try:
+        cpus_float = float(cpus_str)
+        if cpus_float <= 0:
+            raise ValueError("CPU value must be positive")
+        return int(cpus_float * 1e9)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid CPU format: {cpus_str}. Expected a positive number.") from e
 
 
 def get_running_models(cms_project: str) -> list[dict]:
@@ -33,12 +54,20 @@ def get_running_models(cms_project: str) -> list[dict]:
         {
             "name": c.labels.get(SERVICE_NAME_LABEL, c.name),
             "uri": c.labels.get(config.labels.cms_model_uri_label),
+            "deployment_type": c.labels.get(config.labels.deployment_type_label),
         }
         for c in containers
     ]
 
 
-def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: str) -> Container:
+def run_model_container(
+    model_name: str,
+    model_uri: str,
+    ttl: int,
+    cms_project: str,
+    deployment_type: ModelDeploymentType,
+    resources: dict | None = None,
+) -> Container:
     """Run a Docker container for a model server.
 
     The container is started with the `cogstack-modelserve` image as well as the specified model
@@ -47,6 +76,21 @@ def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: 
     server managed by the CogStack Model Gateway, with the specified TTL label determining its
     expiration time. Apart from that, it's configured in the same way as the services included in
     the CogStack Model Serve stack.
+
+    Args:
+        model_name: Docker service name for the model.
+        model_uri: URI pointing to the model artifact (e.g. MLflow model URI).
+        ttl: Fixed time-to-live in seconds (predominantly used for manual deployments).
+        cms_project: CogStack ModelServe Docker Compose project name.
+        deployment_type: Type of deployment (ModelDeploymentType enum).
+        resources: Optional resource limits/reservations dict with structure:
+            {
+                "limits": {"memory": "4g", "cpus": "2.0"},
+                "reservations": {"memory": "2g"}
+            }
+
+    Returns:
+        The created Docker container.
     """
     config = get_config()
     client = docker.from_env()
@@ -65,6 +109,7 @@ def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: 
         config.labels.cms_model_uri_label: model_uri,
         config.labels.ttl_label: str(ttl),
         config.labels.managed_by_label: config.labels.managed_by_value,
+        config.labels.deployment_type_label: deployment_type.value,
     }
 
     base_cmd = "python cli/cli.py serve"
@@ -73,6 +118,17 @@ def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: 
     mlflow_uri_arg = f"--mlflow-model-uri {model_uri}"
     host_arg = "--host 0.0.0.0"
     port_arg = "--port 8000"
+
+    resource_kwargs = {}
+    if resources:
+        limits = resources.get("limits", {})
+        reservations = resources.get("reservations", {})
+
+        resource_kwargs = {
+            **({"mem_limit": limits["memory"]} if limits.get("memory") else {}),
+            **({"mem_reservation": reservations["memory"]} if reservations.get("memory") else {}),
+            **({"nano_cpus": _parse_cpus_to_nano(limits["cpus"])} if limits.get("cpus") else {}),
+        }
 
     container: Container = client.containers.run(
         "cogstacksystems/cogstack-modelserve:dev",
@@ -125,6 +181,7 @@ def run_model_container(model_name: str, model_uri: str, ttl: int, cms_project: 
             "retries": 3,
             "start_period": 60 * 1000000 * 1000,
         },
+        **resource_kwargs,
     )
 
     return container

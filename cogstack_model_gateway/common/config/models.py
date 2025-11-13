@@ -366,6 +366,7 @@ class Config(BaseModel):
     )
     queue_manager: object | None = Field(None, description="Queue manager instance", exclude=True)
     task_manager: object | None = Field(None, description="Task manager instance", exclude=True)
+    model_manager: object | None = Field(None, description="Model manager instance", exclude=True)
 
     def get_on_demand_model(self, service_name: str) -> OnDemandModel | None:
         """Get configuration for a specific on-demand model by service name."""

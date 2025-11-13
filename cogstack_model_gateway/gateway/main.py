@@ -9,6 +9,7 @@ from prometheus_client import CollectorRegistry, make_asgi_app, multiprocess
 from cogstack_model_gateway.common.config import get_config, load_config
 from cogstack_model_gateway.common.db import DatabaseManager
 from cogstack_model_gateway.common.logging import configure_logging
+from cogstack_model_gateway.common.models import ModelManager
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
@@ -69,12 +70,14 @@ async def lifespan(app: FastAPI):
     qm.init_queue()
 
     tm = TaskManager(db_manager=dbm)
+    mm = ModelManager(db_manager=dbm)
 
     config.database_manager = dbm
     config.task_object_store_manager = task_osm
     config.results_object_store_manager = results_osm
     config.queue_manager = qm
     config.task_manager = tm
+    config.model_manager = mm
 
     yield
 
