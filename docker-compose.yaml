@@ -202,6 +202,11 @@ services:
       - .env
     expose:
       - ${CMG_RIPPER_METRICS_PORT:-8002}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
