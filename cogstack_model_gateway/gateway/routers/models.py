@@ -13,6 +13,7 @@ from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
+from cogstack_model_gateway.gateway.core.auto_deploy import ensure_model_available
 from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
 from cogstack_model_gateway.gateway.prometheus.metrics import (
@@ -105,20 +106,58 @@ log = logging.getLogger("cmg.gateway")
 router = APIRouter()
 
 
-def _record_model_usage(model_name: str, model_manager: ModelManager) -> None:
-    """Record model usage or create static model entry if not tracked."""
-    if model_manager.record_model_usage(model_name) is None:
-        log.info(f"Model '{model_name}' not found in database, creating static deployment entry")
-        model_manager.create_model(
-            model_name=model_name, deployment_type=ModelDeploymentType.STATIC
+async def ensure_model_dependency(
+    model_name: str,
+    config: Annotated[Config, Depends(get_config)],
+) -> None:
+    """FastAPI dependency to ensure a model is available before processing request.
+
+    This handles:
+    - Checking if model is running and healthy (all deployment types)
+    - Auto-creating STATIC entries for untracked models
+    - Auto-deploying on-demand models if configured
+
+    Raises:
+        HTTPException(503): If model unavailable.
+    """
+    is_available = await ensure_model_available(
+        model_name=model_name,
+        config=config,
+        model_manager=config.model_manager,
+    )
+
+    if not is_available:
+        running = [m["service_name"] for m in get_running_models(config.cms.project_name)]
+        on_demand = [m.service_name for m in config.list_on_demand_models()]
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Model '{model_name}' is not available. "
+                f"Running models: {running}. "
+                f"On-demand models: {on_demand}. "
+                "List all models at /models"
+            ),
         )
+
+
+def _prepare_model_response(models: list[dict], verbose: bool) -> list[dict]:
+    """Prepare model list for API response."""
+    for model in models:
+        if model_name := model.pop("service_name", None):
+            model["name"] = model_name
+        if model_uri := model.pop("model_uri", None):
+            model["uri"] = model_uri
+            if verbose:
+                if model_info := TrackingClient().get_model_metadata(model_uri):
+                    model["info"] = model_info
+    return models
 
 
 @router.get(
     "/models/",
-    response_model=list[dict],
+    response_model=dict,
     tags=["models"],
-    name="List running CogStack Model Serve instances with metadata from the tracking server",
+    name="List running and on-demand CogStack Model Serve instances",
 )
 async def get_models(
     config: Annotated[Config, Depends(get_config)],
@@ -126,17 +165,22 @@ async def get_models(
         bool | None, Query(description="Include model metadata from the tracking server")
     ] = False,
 ):
-    """List running model servers and attach metadata from the tracking server.
+    """List running model servers and on-demand models that can be auto-deployed.
+
+    Returns a dictionary with two keys:
+    - 'running': List of currently running model containers
+    - 'on_demand': List of models that can be deployed on-demand
 
     Metadata is only included if the `verbose` query parameter is set to `true` and a tracking URI
     is found for the model server.
     """
-    models = get_running_models(config.cms.project_name)
-    for model in models:
-        if model["uri"] and verbose:
-            if model_info := TrackingClient().get_model_metadata(model["uri"]):
-                model["info"] = model_info
-    return models
+    running_models = get_running_models(config.cms.project_name)
+    on_demand_models = [model.model_dump() for model in config.list_on_demand_models()]
+
+    return {
+        "running": _prepare_model_response(running_models, verbose),
+        "on_demand": _prepare_model_response(on_demand_models, verbose),
+    }
 
 
 @router.get(
@@ -144,6 +188,7 @@ async def get_models(
     response_model=dict,
     tags=["models"],
     name="Get information about a running CogStack Model Serve instance",
+    dependencies=[Depends(ensure_model_dependency)],
 )
 async def get_model_info(model_name: str, config: Annotated[Config, Depends(get_config)]):
     """Get information about a running model server through its `/info` API."""
@@ -161,7 +206,8 @@ async def get_model_info(model_name: str, config: Annotated[Config, Depends(get_
     except requests.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    _record_model_usage(model_name, config.model_manager)
+    model_manager: ModelManager = config.model_manager
+    model_manager.record_model_usage(model_name)
     return response.json()
 
 
@@ -233,7 +279,9 @@ async def deploy_model(
             )
         log.debug(f"Validated model URI '{model_uri}': {model_metadata}")
 
-    if any(model["name"] == model_name for model in get_running_models(config.cms.project_name)):
+    if any(
+        model["service_name"] == model_name for model in get_running_models(config.cms.project_name)
+    ):
         raise HTTPException(
             status_code=409,
             detail=(
@@ -293,6 +341,7 @@ async def deploy_model(
     response_model=dict,
     tags=["models"],
     name="Schedule a task for execution on a running CogStack Model Serve instance",
+    dependencies=[Depends(ensure_model_dependency)],
 )
 async def execute_task(
     model_name: str,
@@ -393,7 +442,8 @@ async def execute_task(
     qm: QueueManager = config.queue_manager
     qm.publish(task_dict, priority)
 
-    _record_model_usage(model_name, config.model_manager)
+    model_manager: ModelManager = config.model_manager
+    model_manager.record_model_usage(model_name)
     gateway_tasks_processed_total.labels(model=model_name, task=task).inc()
 
     return {"uuid": task_uuid, "status": "Task submitted successfully"}

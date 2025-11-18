@@ -52,9 +52,10 @@ def get_running_models(cms_project: str) -> list[dict]:
     )
     return [
         {
-            "name": c.labels.get(SERVICE_NAME_LABEL, c.name),
-            "uri": c.labels.get(config.labels.cms_model_uri_label),
-            "deployment_type": c.labels.get(config.labels.deployment_type_label),
+            "service_name": c.labels.get(SERVICE_NAME_LABEL, c.name),
+            "model_uri": c.labels.get(config.labels.cms_model_uri_label),
+            "deployment_type": c.labels.get(config.labels.deployment_type_label)
+            or ModelDeploymentType.STATIC.value,
         }
         for c in containers
     ]

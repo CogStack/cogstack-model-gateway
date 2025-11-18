@@ -117,6 +117,31 @@ class ModelManager:
             raise
 
     @with_db_session
+    def get_model(self, session: Session, model_name: str) -> Model | None:
+        """Get a model record by name returning None if not found."""
+        model = session.get(Model, model_name)
+        if not model:
+            log.debug("Model record not found: %s", model_name)
+            return None
+        return model
+
+    @with_db_session
+    def mark_model_ready(self, session: Session, model_name: str) -> Model | None:
+        """Mark a model as ready returning None if not found."""
+        model = session.get(Model, model_name)
+        if not model:
+            log.warning("Model record not found: %s", model_name)
+            return None
+
+        model.ready = True
+        log.debug("Marked model as ready: %s", model_name)
+
+        session.add(model)
+        session.commit()
+        session.refresh(model)
+        return model
+
+    @with_db_session
     def record_model_usage(self, session: Session, model_name: str) -> Model | None:
         """Update model's last used timestamp to now returning None if the model is not found."""
         model = session.get(Model, model_name)

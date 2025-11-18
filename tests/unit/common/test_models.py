@@ -64,6 +64,50 @@ def test_create_model_duplicate(model_manager: ModelManager) -> None:
         )
 
 
+def test_get_model(model_manager: ModelManager) -> None:
+    """Test retrieving a model by name."""
+    model_manager.create_model(
+        model_name="test-get-model",
+        deployment_type=ModelDeploymentType.AUTO,
+        idle_ttl=300,
+        ready=False,
+    )
+
+    retrieved_model = model_manager.get_model("test-get-model")
+    assert retrieved_model is not None
+    assert retrieved_model.model_name == "test-get-model"
+    assert retrieved_model.deployment_type == ModelDeploymentType.AUTO
+    assert retrieved_model.idle_ttl == 300
+    assert retrieved_model.ready is False
+
+    # Test getting a non-existent model
+    non_existent = model_manager.get_model("nonexistent-model")
+    assert non_existent is None
+
+
+def test_mark_model_ready(model_manager: ModelManager) -> None:
+    """Test marking a model as ready."""
+    model = model_manager.create_model(
+        model_name="test-mark-ready",
+        deployment_type=ModelDeploymentType.MANUAL,
+        idle_ttl=300,
+        ready=False,
+    )
+    assert model.ready is False
+
+    updated_model = model_manager.mark_model_ready("test-mark-ready")
+    assert updated_model is not None
+    assert updated_model.ready is True
+
+    retrieved_model = model_manager.get_model("test-mark-ready")
+    assert retrieved_model is not None
+    assert retrieved_model.ready is True
+
+    # Test marking a non-existent model as ready
+    result = model_manager.mark_model_ready("nonexistent-model")
+    assert result is None
+
+
 def test_record_model_usage(model_manager: ModelManager) -> None:
     """Test recording usage updates last_used_at timestamp."""
     model = model_manager.create_model(
