@@ -127,7 +127,7 @@ async def ensure_model_dependency(
     )
 
     if not is_available:
-        running = [m["service_name"] for m in get_running_models(config.cms.project_name)]
+        running = [m["service_name"] for m in get_running_models()]
         on_demand = [m.service_name for m in config.list_on_demand_models()]
         raise HTTPException(
             status_code=503,
@@ -174,7 +174,7 @@ async def get_models(
     Metadata is only included if the `verbose` query parameter is set to `true` and a tracking URI
     is found for the model server.
     """
-    running_models = get_running_models(config.cms.project_name)
+    running_models = get_running_models()
     on_demand_models = [model.model_dump() for model in config.list_on_demand_models()]
 
     return {
@@ -279,9 +279,7 @@ async def deploy_model(
             )
         log.debug(f"Validated model URI '{model_uri}': {model_metadata}")
 
-    if any(
-        model["service_name"] == model_name for model in get_running_models(config.cms.project_name)
-    ):
+    if any(model["service_name"] == model_name for model in get_running_models()):
         raise HTTPException(
             status_code=409,
             detail=(
@@ -308,7 +306,6 @@ async def deploy_model(
             model_name=model_name,
             model_uri=model_uri,
             ttl=ttl,
-            cms_project=config.cms.project_name,
             deployment_type=ModelDeploymentType.MANUAL,
             resources=None,  # TODO: Add resource limits support for manual deployments
         )

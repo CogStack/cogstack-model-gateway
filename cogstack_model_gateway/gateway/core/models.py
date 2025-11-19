@@ -34,20 +34,18 @@ def _parse_cpus_to_nano(cpus_str: str) -> int:
         raise ValueError(f"Invalid CPU format: {cpus_str}. Expected a positive number.") from e
 
 
-def get_running_models(cms_project: str) -> list[dict]:
+def get_running_models() -> list[dict]:
     """Get a list of running containers corresponding to model servers."""
     config = get_config()
     client = docker.from_env()
-    if not cms_project:
-        raise ValueError(
-            "CogStack ModelServe Docker Compose project name was not provided."
-            f" Please try setting the '{CMS_PROJECT_ENV_VAR}' environment variable."
-        )
 
     containers = client.containers.list(
         filters={
             "status": "running",
-            "label": [config.labels.cms_model_label, f"{PROJECT_NAME_LABEL}={cms_project}"],
+            "label": [
+                config.labels.cms_model_label,
+                f"{PROJECT_NAME_LABEL}={config.cms.project_name}",
+            ],
         }
     )
     return [
@@ -64,9 +62,8 @@ def get_running_models(cms_project: str) -> list[dict]:
 def run_model_container(
     model_name: str,
     model_uri: str,
-    ttl: int,
-    cms_project: str,
     deployment_type: ModelDeploymentType,
+    ttl: int = -1,
     resources: dict | None = None,
 ) -> Container:
     """Run a Docker container for a model server.
@@ -81,9 +78,8 @@ def run_model_container(
     Args:
         model_name: Docker service name for the model.
         model_uri: URI pointing to the model artifact (e.g. MLflow model URI).
-        ttl: Fixed time-to-live in seconds (predominantly used for manual deployments).
-        cms_project: CogStack ModelServe Docker Compose project name.
         deployment_type: Type of deployment (ModelDeploymentType enum).
+        ttl: Fixed time-to-live in seconds (predominantly used for manual deployments).
         resources: Optional resource limits/reservations dict with structure:
             {
                 "limits": {"memory": "4g", "cpus": "2.0"},
@@ -95,17 +91,12 @@ def run_model_container(
     """
     config = get_config()
     client = docker.from_env()
-    if not cms_project:
-        raise ValueError(
-            "CogStack ModelServe Docker Compose project name was not provided."
-            f" Please try setting the '{CMS_PROJECT_ENV_VAR}' environment variable."
-        )
 
     labels = {
         # The project name is set by Docker when deploying CMS through its compose file. We have to
         # set it explicitly here to ensure that model servers deployed through the gateway can be
         # identified/listed/deleted in the same way as the ones deployed through Docker compose.
-        PROJECT_NAME_LABEL: cms_project,
+        PROJECT_NAME_LABEL: config.cms.project_name,
         config.labels.cms_model_label: model_name,
         config.labels.cms_model_uri_label: model_uri,
         config.labels.ttl_label: str(ttl),

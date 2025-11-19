@@ -26,9 +26,9 @@ log = logging.getLogger("cmg.gateway.auto_deploy")
 STALE_DEPLOYMENT_LOCK_SECONDS = 300  # 5 minutes
 
 
-def is_model_running(model_name: str, cms_project: str) -> bool:
+def is_model_running(model_name: str) -> bool:
     """Check if a model container is currently running."""
-    return model_name in {m["service_name"] for m in get_running_models(cms_project)}
+    return model_name in {m["service_name"] for m in get_running_models()}
 
 
 async def wait_for_model_health(
@@ -115,9 +115,8 @@ def deploy_on_demand_model(
 
     try:
         container = run_model_container(
-            service_name=model_name,
+            model_name=model_name,
             model_uri=model_config.model_uri,
-            config=config,
             deployment_type=ModelDeploymentType.AUTO,
             resources=model_config.deploy.resources if model_config.deploy else None,
         )
@@ -157,7 +156,7 @@ async def ensure_model_available(
         True if model is available and ready, False otherwise
     """
     # Step 1: Check if model is currently running
-    if is_model_running(model_name, config.cms.project_name):
+    if is_model_running(model_name):
         log.debug("Model '%s' container is running, checking health", model_name)
 
         # Step 2: Check if model is healthy
