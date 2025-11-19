@@ -83,6 +83,7 @@ services:
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
+      - CONFIG_FILE=/app/config.json
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
       - CMG_DB_HOST=postgres
@@ -116,6 +117,7 @@ services:
       - "${CMG_HOST_PORT:-8888}:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.json:/app/config.json:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -141,6 +143,7 @@ services:
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
+      - CONFIG_FILE=/app/config.json
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
       - CMG_DB_HOST=postgres
@@ -169,6 +172,8 @@ services:
       - .env
     expose:
       - ${CMG_SCHEDULER_METRICS_PORT:-8001}
+    volumes:
+      - ./config.json:/app/config.json:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -189,6 +194,7 @@ services:
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
+      - CONFIG_FILE=/app/config.json
       - CMG_COMMON_LOG_LEVEL=$CMG_COMMON_LOG_LEVEL
       - CMG_RIPPER_LOG_LEVEL=$CMG_RIPPER_LOG_LEVEL
       - CMG_RIPPER_INTERVAL=${CMG_RIPPER_INTERVAL:-60}
@@ -202,13 +208,14 @@ services:
       - .env
     expose:
       - ${CMG_RIPPER_METRICS_PORT:-8002}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.json:/app/config.json:ro
     depends_on:
       postgres:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - observability
 

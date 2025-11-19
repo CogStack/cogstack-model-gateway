@@ -25,7 +25,7 @@ RUN poetry install --only main --no-root --no-directory
 
 COPY cogstack_model_gateway/common ./cogstack_model_gateway/common
 COPY cogstack_model_gateway/gateway ./cogstack_model_gateway/gateway
-COPY config.json README.md ./
+COPY README.md ./
 
 RUN poetry install --only main
 
