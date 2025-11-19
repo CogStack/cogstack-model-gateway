@@ -42,7 +42,6 @@ async def lifespan(app: FastAPI):
         port=config.db.port,
         db_name=config.db.name,
     )
-    dbm.init_db()
 
     task_osm = ObjectStoreManager(
         host=config.object_store.host,

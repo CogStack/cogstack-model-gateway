@@ -1,7 +1,7 @@
 """Extend Task with request info and timestamps
 
 Revision ID: 1859866dbf86
-Revises:
+Revises: 000000000000
 Create Date: 2025-06-19 17:29:59.695124
 
 """
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "1859866dbf86"
-down_revision: str | Sequence[str] | None = None
+down_revision: str | Sequence[str] | None = "000000000000"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
