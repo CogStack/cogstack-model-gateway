@@ -1,29 +1,15 @@
 {
+    "cms": {
+        "image": "cogstacksystems/cogstack-modelserve:sha-8ecff50"
+    },
     "models": {
         "deployment": {
             "auto": {
-                "config": {
-                    "health_check_timeout": 300,
-                    "default_idle_ttl": 3600,
-                    "max_concurrent_deployments": 3,
-                    "deployment_retry_attempts": 2
-                },
                 "on_demand": []
             },
             "manual": {
-                "default_ttl": 86400,
-                "allow_ttl_override": true,
-                "max_ttl": 604800,
-                "require_model_uri_validation": false
+                "max_ttl": 604800
             }
         }
-    },
-    "labels": {
-        "cms_model_label": "org.cogstack.model-serve",
-        "cms_model_uri_label": "org.cogstack.model-serve.uri",
-        "deployment_type_label": "org.cogstack.model-gateway.deployment-type",
-        "managed_by_label": "org.cogstack.model-gateway.managed-by",
-        "managed_by_value": "cmg",
-        "ttl_label": "org.cogstack.model-gateway.ttl"
     }
 }

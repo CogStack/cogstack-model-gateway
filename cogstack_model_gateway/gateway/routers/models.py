@@ -305,8 +305,10 @@ async def deploy_model(
         container = run_model_container(
             model_name=model_name,
             model_uri=model_uri,
-            ttl=ttl,
+            # FIXME: add model type
+            model_type="medcat_umls",
             deployment_type=ModelDeploymentType.MANUAL,
+            ttl=ttl,
             resources=None,  # TODO: Add resource limits support for manual deployments
         )
 

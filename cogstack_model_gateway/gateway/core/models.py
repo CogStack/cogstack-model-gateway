@@ -1,14 +1,9 @@
-import os
-
 import docker
 from docker.models.containers import Container
 
 from cogstack_model_gateway.common.config import get_config
 from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL, SERVICE_NAME_LABEL
 from cogstack_model_gateway.common.models import ModelDeploymentType
-
-CMS_PROJECT_ENV_VAR = "CMS_PROJECT_NAME"
-CMS_DOCKER_NETWORK = "cogstack-model-serve_cms"
 
 
 def _parse_cpus_to_nano(cpus_str: str) -> int:
@@ -62,22 +57,22 @@ def get_running_models() -> list[dict]:
 def run_model_container(
     model_name: str,
     model_uri: str,
+    model_type: str,
     deployment_type: ModelDeploymentType,
     ttl: int = -1,
     resources: dict | None = None,
 ) -> Container:
     """Run a Docker container for a model server.
 
-    The container is started with the `cogstack-modelserve` image as well as the specified model
-    name which is used as the Docker service name and the tracking server URI for the trained model
-    to be deployed. The new CogStack Model Serve instance is given labels to identify it as a model
-    server managed by the CogStack Model Gateway, with the specified TTL label determining its
-    expiration time. Apart from that, it's configured in the same way as the services included in
-    the CogStack Model Serve stack.
+    The container is started with the configured CogStack ModelServe image and the specified model
+    name, type, and URI. The new CogStack Model Serve instance is given labels to identify it as a
+    model server managed by the CogStack Model Gateway, with the specified TTL label determining
+    its expiration time.
 
     Args:
         model_name: Docker service name for the model.
         model_uri: URI pointing to the model artifact (e.g. MLflow model URI).
+        model_type: Type of model (e.g., 'medcat_umls', 'medcat_snomed', 'transformers').
         deployment_type: Type of deployment (ModelDeploymentType enum).
         ttl: Fixed time-to-live in seconds (predominantly used for manual deployments).
         resources: Optional resource limits/reservations dict with structure:
@@ -105,11 +100,11 @@ def run_model_container(
     }
 
     base_cmd = "python cli/cli.py serve"
-    model_type_arg = "--model-type medcat_umls"
+    model_type_arg = f"--model-type {model_type}"
     model_name_arg = f"--model-name {model_name}"
     mlflow_uri_arg = f"--mlflow-model-uri {model_uri}"
     host_arg = "--host 0.0.0.0"
-    port_arg = "--port 8000"
+    port_arg = f"--port {config.cms.server_port}"
 
     resource_kwargs = {}
     if resources:
@@ -123,7 +118,7 @@ def run_model_container(
         }
 
     container: Container = client.containers.run(
-        "cogstacksystems/cogstack-modelserve:dev",
+        config.cms.image,
         command=[
             "sh",
             "-c",
@@ -131,47 +126,41 @@ def run_model_container(
         ],
         detach=True,
         environment={
-            "ENABLE_TRAINING_APIS": "true",
-            "ENABLE_EVALUATION_APIS": "true",
-            "ENABLE_PREVIEWS_APIS": "true",
-            "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
-            "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
-            "MLFLOW_S3_ENDPOINT_URL": os.getenv("MLFLOW_S3_ENDPOINT_URL", "http://minio:9000"),
-            "MLFLOW_TRACKING_URI": os.getenv("MLFLOW_TRACKING_URI", "http://mlflow-ui:5000"),
-            "MLFLOW_TRACKING_USERNAME": os.getenv("MLFLOW_TRACKING_USERNAME", "admin"),
-            "MLFLOW_TRACKING_PASSWORD": os.getenv("MLFLOW_TRACKING_PASSWORD", "password"),
-            "MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING": os.getenv(
-                "MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING", "true"
-            ),
-            "GELF_INPUT_URI": os.getenv("GELF_INPUT_URI", "http://graylog:12201"),
-            "AUTH_USER_ENABLED": os.getenv("AUTH_USER_ENABLED", "false"),
-            "AUTH_JWT_SECRET": os.getenv("AUTH_JWT_SECRET"),
-            "AUTH_ACCESS_TOKEN_EXPIRE_SECONDS": os.getenv(
-                "AUTH_ACCESS_TOKEN_EXPIRE_SECONDS", "3600"
-            ),
-            "AUTH_DATABASE_URL": os.getenv(
-                "AUTH_DATABASE_URL", "sqlite+aiosqlite:///./cms-users.db"
-            ),
-            "HTTP_PROXY": os.getenv("HTTP_PROXY"),
-            "HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
-            "NO_PROXY": os.getenv("NO_PROXY", "mlflow-ui,minio,graylog,auth-db,localhost"),
-            "http_proxy": os.getenv("HTTP_PROXY"),
-            "https_proxy": os.getenv("HTTPS_PROXY"),
-            "no_proxy": os.getenv("NO_PROXY", "mlflow-ui,minio,graylog,auth-db,localhost"),
+            "ENABLE_TRAINING_APIS": str(config.cms.enable_training_apis).lower(),
+            "ENABLE_EVALUATION_APIS": str(config.cms.enable_evaluation_apis).lower(),
+            "ENABLE_PREVIEWS_APIS": str(config.cms.enable_previews_apis).lower(),
+            "AWS_ACCESS_KEY_ID": config.cms.mlflow.s3.access_key_id or "",
+            "AWS_SECRET_ACCESS_KEY": config.cms.mlflow.s3.secret_access_key or "",
+            "MLFLOW_S3_ENDPOINT_URL": config.cms.mlflow.s3.endpoint_url,
+            "MLFLOW_TRACKING_URI": config.cms.mlflow.tracking_uri,
+            "MLFLOW_TRACKING_USERNAME": config.cms.mlflow.tracking_username,
+            "MLFLOW_TRACKING_PASSWORD": config.cms.mlflow.tracking_password,
+            "MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING": str(
+                config.cms.mlflow.enable_system_metrics_logging
+            ).lower(),
+            "GELF_INPUT_URI": config.cms.gelf_input_uri,
+            "AUTH_USER_ENABLED": str(config.cms.auth.user_enabled).lower(),
+            "AUTH_JWT_SECRET": config.cms.auth.jwt_secret or "",
+            "AUTH_ACCESS_TOKEN_EXPIRE_SECONDS": str(config.cms.auth.access_token_expire_seconds),
+            "AUTH_DATABASE_URL": config.cms.auth.database_url,
+            "HTTP_PROXY": config.cms.proxy.http_proxy or "",
+            "HTTPS_PROXY": config.cms.proxy.https_proxy or "",
+            "NO_PROXY": config.cms.proxy.no_proxy,
+            "http_proxy": config.cms.proxy.http_proxy or "",
+            "https_proxy": config.cms.proxy.https_proxy or "",
+            "no_proxy": config.cms.proxy.no_proxy,
         },
         labels=labels,
         name=model_name,
-        network=CMS_DOCKER_NETWORK,
-        volumes={
-            "retrained-models": {"bind": "/app/model/retrained", "mode": "rw"},
-        },
-        ports={"8000/tcp": None},
+        network=config.cms.network,
+        volumes={name: {"bind": path, "mode": "rw"} for name, path in config.cms.volumes.items()},
+        ports={f"{config.cms.server_port}/tcp": None},
         healthcheck={
-            "test": ["CMD", "curl", "-f", "http://localhost:8000/info"],
-            "interval": 90 * 1000000 * 1000,
-            "timeout": 10 * 1000000 * 1000,
-            "retries": 3,
-            "start_period": 60 * 1000000 * 1000,
+            "test": ["CMD", "curl", "-f", f"http://localhost:{config.cms.server_port}/info"],
+            "interval": config.cms.health_check.interval * 1000000 * 1000,
+            "timeout": config.cms.health_check.timeout * 1000000 * 1000,
+            "retries": config.cms.health_check.retries,
+            "start_period": config.cms.health_check.start_period * 1000000 * 1000,
         },
         **resource_kwargs,
     )

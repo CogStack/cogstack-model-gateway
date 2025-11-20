@@ -1,4 +1,44 @@
 {
+    "cms": {
+        "host_url": "https://proxy/cms",
+        "project_name": "cms",
+        "server_port": 8000,
+        "network": "cogstack-model-serve_cms",
+        "image": "cogstacksystems/cogstack-modelserve:latest",
+        "volumes": {"retrained-models": "/app/model/retrained"},
+        "gelf_input_uri": "http://graylog:12201",
+        "enable_evaluation_apis": true,
+        "enable_previews_apis": true,
+        "enable_training_apis": true,
+        "mlflow": {
+            "s3": {
+                "access_key_id": null,
+                "secret_access_key": null,
+                "endpoint_url": "http://minio:9000"
+            },
+            "tracking_uri": "http://mlflow-ui:5000",
+            "tracking_username": "admin",
+            "tracking_password": "password",
+            "enable_system_metrics_logging": true
+        },
+        "auth": {
+            "user_enabled": false,
+            "jwt_secret": null,
+            "access_token_expire_seconds": 3600,
+            "database_url": "sqlite+aiosqlite:///./cms-users.db"
+        },
+        "proxy": {
+            "http_proxy": null,
+            "https_proxy": null,
+            "no_proxy": "mlflow-ui,minio,graylog,auth-db,localhost"
+        },
+        "health_check": {
+            "interval": 90,
+            "timeout": 10,
+            "retries": 3,
+            "start_period": 60
+        }
+    },
     "models": {
         "deployment": {
             "auto": {

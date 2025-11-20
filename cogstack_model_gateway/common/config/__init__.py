@@ -123,6 +123,7 @@ def load_config() -> Config:
 
         merged_config = {
             **env_config,
+            "cms": json_config.get("cms", {}),
             "models": json_config.get("models", {}),
             "labels": json_config.get("labels", {}),
         }

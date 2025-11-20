@@ -239,12 +239,80 @@ class ModelsConfig(BaseModel):
     )
 
 
+class HealthCheckConfig(BaseModel):
+    """Health check configuration for model containers."""
+
+    interval: int = Field(90, description="Health check interval in seconds", gt=0)
+    timeout: int = Field(10, description="Health check timeout in seconds", gt=0)
+    retries: int = Field(3, description="Health check retries", ge=0)
+    start_period: int = Field(60, description="Health check start period in seconds", gt=0)
+
+
+class MLflowS3Config(BaseModel):
+    """MLflow S3 configuration for model containers."""
+
+    access_key_id: str | None = Field(None, description="AWS access key ID")
+    secret_access_key: str | None = Field(None, description="AWS secret access key")
+    endpoint_url: str = Field("http://minio:9000", description="MLflow artifact storage endpoint")
+
+
+class MLflowConfig(BaseModel):
+    """MLflow configuration for model containers."""
+
+    s3: MLflowS3Config = Field(default_factory=MLflowS3Config, description="MLflow S3 settings")
+    tracking_uri: str = Field("http://mlflow-ui:5000", description="MLflow tracking server URI")
+    tracking_username: str = Field("admin", description="MLflow tracking server username")
+    tracking_password: str = Field("password", description="MLflow tracking server password")
+    enable_system_metrics_logging: bool = Field(True, description="Enable system metrics logging")
+
+
+class AuthConfig(BaseModel):
+    """Authentication configuration for model containers."""
+
+    user_enabled: bool = Field(False, description="Enable user authentication")
+    jwt_secret: str | None = Field(None, description="JWT secret for token signing")
+    access_token_expire_seconds: int = Field(3600, description="Access token expiration time", gt=0)
+    database_url: str = Field(
+        "sqlite+aiosqlite:///./cms-users.db", description="Authentication database URL"
+    )
+
+
+class ProxyConfig(BaseModel):
+    """Proxy configuration for model containers."""
+
+    http_proxy: str | None = Field(None, description="HTTP proxy URL")
+    https_proxy: str | None = Field(None, description="HTTPS proxy URL")
+    no_proxy: str = Field(
+        "mlflow-ui,minio,graylog,auth-db,localhost",
+        description="Comma-separated list of hosts to exclude from proxying",
+    )
+
+
 class CMSConfig(BaseModel):
     """CogStack ModelServe related configuration."""
 
-    host_url: str = Field("", description="CMS host URL (for proxy scenarios)")
+    host_url: str = Field("https://proxy/cms", description="CMS host URL")
     project_name: str = Field("cms", description="CMS Docker Compose project name")
     server_port: int = Field(8000, description="CMS server port")
+    network: str = Field("cogstack-model-serve_cms", description="CMS Docker network")
+    image: str = Field(
+        "cogstacksystems/cogstack-modelserve:latest",
+        description="Docker image for CogStack ModelServe",
+    )
+    volumes: dict[str, str] = Field(
+        default_factory=lambda: {"retrained-models": "/app/model/retrained"},
+        description="Volume mappings for model containers (volume_name: container_path)",
+    )
+    gelf_input_uri: str = Field("http://graylog:12201", description="GELF input URI for logging")
+    enable_evaluation_apis: bool = Field(True, description="Enable CMS evaluation APIs")
+    enable_previews_apis: bool = Field(True, description="Enable CMS preview APIs")
+    enable_training_apis: bool = Field(True, description="Enable CMS training APIs")
+    mlflow: MLflowConfig = Field(default_factory=MLflowConfig, description="MLflow configuration")
+    auth: AuthConfig = Field(default_factory=AuthConfig, description="Authentication configuration")
+    proxy: ProxyConfig = Field(default_factory=ProxyConfig, description="Proxy configuration")
+    health_check: HealthCheckConfig = Field(
+        default_factory=HealthCheckConfig, description="Health check configuration"
+    )
 
 
 class DatabaseConfig(BaseModel):
