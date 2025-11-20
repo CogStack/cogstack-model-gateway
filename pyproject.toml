@@ -25,6 +25,7 @@ python-multipart = "^0.0.19"
 minio = "^7.2.12"
 prometheus-client = "^0.22.1"
 python-dateutil = "^2.9.0.post0"
+boto3 = "^1.41.0"
 
 [tool.poetry.group.dev]
 optional = true
