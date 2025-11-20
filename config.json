@@ -1,6 +1,6 @@
 {
     "cms": {
-        "image": "cogstacksystems/cogstack-modelserve:sha-8ecff50"
+        "image": "cogstacksystems/cogstack-modelserve:latest"
     },
     "models": {
         "deployment": {
