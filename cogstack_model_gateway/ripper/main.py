@@ -104,6 +104,7 @@ def purge_expired_containers(config: Config):
 
     while True:
         containers = client.containers.list(
+            all=True,
             filters={
                 "label": [
                     f"{config.labels.managed_by_label}={config.labels.managed_by_value}",

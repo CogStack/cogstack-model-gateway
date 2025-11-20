@@ -71,6 +71,7 @@ def test_purge_expired_containers_manual_deployment(mock_sleep, mock_docker):
         purge_expired_containers(mock_config)
 
     mock_client.containers.list.assert_called_once_with(
+        all=True,
         filters={
             "label": [
                 f"{mock_config.labels.managed_by_label}={mock_config.labels.managed_by_value}",
