@@ -140,7 +140,9 @@ async def ensure_model_dependency(
         )
 
 
-def _prepare_model_response(models: list[dict], verbose: bool) -> list[dict]:
+def _prepare_model_response(
+    models: list[dict], tracking_client: TrackingClient, verbose: bool
+) -> list[dict]:
     """Prepare model list for API response."""
     for model in models:
         if model_name := model.pop("service_name", None):
@@ -148,7 +150,7 @@ def _prepare_model_response(models: list[dict], verbose: bool) -> list[dict]:
         if model_uri := model.pop("model_uri", None):
             model["uri"] = model_uri
             if verbose:
-                if model_info := TrackingClient().get_model_metadata(model_uri):
+                if model_info := tracking_client.get_model_metadata(model_uri):
                     model["info"] = model_info
     return models
 
@@ -178,8 +180,8 @@ async def get_models(
     on_demand_models = [model.model_dump() for model in config.list_on_demand_models()]
 
     return {
-        "running": _prepare_model_response(running_models, verbose),
-        "on_demand": _prepare_model_response(on_demand_models, verbose),
+        "running": _prepare_model_response(running_models, config.tracking_client, verbose),
+        "on_demand": _prepare_model_response(on_demand_models, config.tracking_client, verbose),
     }
 
 
@@ -255,7 +257,7 @@ async def deploy_model(
 
     A corresponding Model database entry is created to track usage and enable lifecycle management.
     """
-    tc = TrackingClient()
+    tc: TrackingClient = config.tracking_client
     manual_config = config.get_manual_deployment_config()
 
     if not tracking_id and not model_uri:

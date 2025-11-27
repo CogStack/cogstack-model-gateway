@@ -41,10 +41,6 @@ through environment variables. Before deploying the Gateway, make sure to set th
 either by exporting them in the shell or by creating a `.env` file in the root directory of the
 project. The following variables are required:
 
-* `MLFLOW_TRACKING_URI`: The URI for the MLflow tracking server.
-* `CMS_PROJECT_NAME`: The name of the Docker project where the CogStack ModelServe stack is running.
-* `CMS_HOST_URL` (optional): Useful when running CogStack ModelServe instances behind a proxy. If
-  omitted, the Gateway will attempt to reach the services directly over the internal Docker network.
 * `CMG_SCHEDULER_MAX_CONCURRENT_TASKS`: The max number of concurrent tasks the scheduler can handle.
 * `CMG_DB_USER`: The username for the PostgreSQL database.
 * `CMG_DB_PASSWORD`: The password for the PostgreSQL database.
@@ -65,11 +61,6 @@ not allowed in MinIO bucket names). The configuration should be saved in a `.env
 directory of the project before running Docker Compose (or sourced directly in the shell):
 
 ```shell
-CMS_PROJECT_NAME=<cms-docker-compose-project-name>  # e.g. cms
-
-# (optional) Useful when running CMS behind a proxy
-CMS_HOST_URL=https://<proxy-docker-service-name>/cms  # e.g. https://proxy/cms
-
 CMG_SCHEDULER_MAX_CONCURRENT_TASKS=1
 
 # Postgres
@@ -93,9 +84,6 @@ CMG_OBJECT_STORE_HOST=minio
 CMG_OBJECT_STORE_PORT=9000
 CMG_OBJECT_STORE_BUCKET_TASKS=cmg-tasks
 CMG_OBJECT_STORE_BUCKET_RESULTS=cmg-results
-
-# MLflow (use container IP when running locally)
-MLFLOW_TRACKING_URI=http://<mlflow-docker-service-name>:<mlflow-port>  # e.g. http://mlflow-ui:5000
 ```
 
 To install the CogStack Model Gateway, clone the repository and run `docker compose` inside the root

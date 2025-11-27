@@ -129,14 +129,14 @@ def run_model_container(
             "ENABLE_TRAINING_APIS": str(config.cms.enable_training_apis).lower(),
             "ENABLE_EVALUATION_APIS": str(config.cms.enable_evaluation_apis).lower(),
             "ENABLE_PREVIEWS_APIS": str(config.cms.enable_previews_apis).lower(),
-            "AWS_ACCESS_KEY_ID": config.cms.mlflow.s3.access_key_id or "",
-            "AWS_SECRET_ACCESS_KEY": config.cms.mlflow.s3.secret_access_key or "",
-            "MLFLOW_S3_ENDPOINT_URL": config.cms.mlflow.s3.endpoint_url,
-            "MLFLOW_TRACKING_URI": config.cms.mlflow.tracking_uri,
-            "MLFLOW_TRACKING_USERNAME": config.cms.mlflow.tracking_username,
-            "MLFLOW_TRACKING_PASSWORD": config.cms.mlflow.tracking_password,
+            "AWS_ACCESS_KEY_ID": config.cms.tracking.s3.access_key_id or "",
+            "AWS_SECRET_ACCESS_KEY": config.cms.tracking.s3.secret_access_key or "",
+            "MLFLOW_S3_ENDPOINT_URL": config.cms.tracking.s3.endpoint_url,
+            "MLFLOW_TRACKING_URI": config.cms.tracking.uri,
+            "MLFLOW_TRACKING_USERNAME": config.cms.tracking.username,
+            "MLFLOW_TRACKING_PASSWORD": config.cms.tracking.password,
             "MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING": str(
-                config.cms.mlflow.enable_system_metrics_logging
+                config.cms.tracking.enable_system_metrics_logging
             ).lower(),
             "GELF_INPUT_URI": config.cms.gelf_input_uri,
             "AUTH_USER_ENABLED": str(config.cms.auth.user_enabled).lower(),

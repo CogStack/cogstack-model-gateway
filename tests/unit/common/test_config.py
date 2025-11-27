@@ -11,8 +11,6 @@ from cogstack_model_gateway.common.config import (
 from cogstack_model_gateway.common.config.models import OnDemandModel
 
 TEST_ENV_VARS = {
-    "CMS_HOST_URL": "http://localhost:8000",
-    "CMS_PROJECT_NAME": "test-project",
     "CMG_DB_USER": "test_user",
     "CMG_DB_PASSWORD": "test_password",
     "CMG_DB_HOST": "localhost",
@@ -51,11 +49,9 @@ def test_config_validation():
 
     config = Config.model_validate(
         {
-            "cms": {"host_url": "http://localhost:8000"},
             "db": {"user": "test_user"},
         }
     )
-    assert config.cms.host_url == "http://localhost:8000"
     assert config.db.user == "test_user"
 
 
@@ -63,16 +59,13 @@ def test_config_to_dict():
     """Test converting Config to dictionary."""
     config = Config.model_validate(
         {
-            "cms": {"host_url": "http://localhost:8000"},
             "db": {"user": "test_user"},
         }
     )
 
     config_dict = config.model_dump()
     assert isinstance(config_dict, dict)
-    assert "cms" in config_dict
     assert "db" in config_dict
-    assert config_dict["cms"]["host_url"] == "http://localhost:8000"
     assert config_dict["db"]["user"] == "test_user"
 
 
@@ -109,8 +102,6 @@ def test_load_config(mock_file, mock_getenv, mock_load_dotenv):
     config = load_config()
 
     assert isinstance(config, Config)
-    assert config.cms.host_url == "http://localhost:8000"
-    assert config.cms.project_name == "test-project"
 
     assert config.db.user == "test_user"
     assert config.db.password == "test_password"
@@ -131,7 +122,6 @@ def test_load_config_no_env_vars(mock_file, mock_getenv, mock_load_dotenv):
     assert isinstance(config, Config)
 
     # Check that config uses defaults when env vars not set
-    assert config.cms is not None
     assert config.db is not None
     assert config.models is not None
 
@@ -147,7 +137,6 @@ def test_load_config_missing_file(mock_file, mock_getenv, mock_load_dotenv):
     assert isinstance(config, Config)
 
     # Should still have env var config
-    assert config.cms.host_url == "http://localhost:8000"
     assert config.db.user == "test_user"
 
     assert config.models is not None
@@ -342,10 +331,6 @@ def test_config_comprehensive_structure(mock_file, mock_getenv, mock_load_dotenv
     assert config.ripper is not None
     assert config.models is not None
     assert config.labels is not None
-
-    # Test CMS config (from env vars)
-    assert config.cms.host_url == "http://localhost:8000"
-    assert config.cms.project_name == "test-project"
 
     # Test database config (from env vars)
     assert config.db.host == "localhost"

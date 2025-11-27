@@ -13,6 +13,7 @@ from cogstack_model_gateway.common.models import ModelManager
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
+from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.prometheus.metrics import gateway_requests_total
 from cogstack_model_gateway.gateway.routers import models, tasks
 
@@ -71,12 +72,22 @@ async def lifespan(app: FastAPI):
     tm = TaskManager(db_manager=dbm)
     mm = ModelManager(db_manager=dbm)
 
+    tc = TrackingClient(
+        tracking_uri=config.tracking.uri,
+        username=config.tracking.username,
+        password=config.tracking.password,
+        s3_endpoint_url=config.tracking.s3.endpoint_url,
+        s3_access_key_id=config.tracking.s3.access_key_id,
+        s3_secret_access_key=config.tracking.s3.secret_access_key,
+    )
+
     config.database_manager = dbm
     config.task_object_store_manager = task_osm
     config.results_object_store_manager = results_osm
     config.queue_manager = qm
     config.task_manager = tm
     config.model_manager = mm
+    config.tracking_client = tc
 
     yield
 

@@ -1,6 +1,23 @@
 {
+    "tracking": {
+        "uri": "http://mlflow-ui:5000",  // use container IP when running locally
+        "username": "admin",
+        "password": "password",
+        "s3": {
+            // Using a read-only service account is recommended here, even if the endpoint ends up
+            // being the same as the one configured for the CMS instances which need write access to
+            // log training artifacts
+            "access_key_id": null,
+            "secret_access_key": null,
+            "endpoint_url": "http://minio:9000"  // use container IP when running locally
+        },
+        "enable_system_metrics_logging": true
+    },
     "cms": {
-        "host_url": "https://proxy/cms",
+        // Useful when running CogStack ModelServe instances behind a proxy.
+        // If omitted, the Gateway will attempt to reach the services directly over the internal
+        // Docker network. Use container IP when running locally.
+        "host_url": "https://proxy/cms",  // use container IP when running locally
         "project_name": "cms",
         "server_port": 8000,
         "network": "cogstack-model-serve_cms",
@@ -10,15 +27,15 @@
         "enable_evaluation_apis": true,
         "enable_previews_apis": true,
         "enable_training_apis": true,
-        "mlflow": {
+        "tracking": {
+            "uri": "http://mlflow-ui:5000",
+            "username": "admin",
+            "password": "password",
             "s3": {
                 "access_key_id": null,
                 "secret_access_key": null,
                 "endpoint_url": "http://minio:9000"
             },
-            "tracking_uri": "http://mlflow-ui:5000",
-            "tracking_username": "admin",
-            "tracking_password": "password",
             "enable_system_metrics_logging": true
         },
         "auth": {

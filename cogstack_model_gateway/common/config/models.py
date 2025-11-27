@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ResourceLimits(BaseModel):
@@ -248,22 +248,12 @@ class HealthCheckConfig(BaseModel):
     start_period: int = Field(60, description="Health check start period in seconds", gt=0)
 
 
-class MLflowS3Config(BaseModel):
-    """MLflow S3 configuration for model containers."""
+class S3Config(BaseModel):
+    """S3/MinIO configuration for artifact storage."""
 
-    access_key_id: str | None = Field(None, description="AWS access key ID")
-    secret_access_key: str | None = Field(None, description="AWS secret access key")
-    endpoint_url: str = Field("http://minio:9000", description="MLflow artifact storage endpoint")
-
-
-class MLflowConfig(BaseModel):
-    """MLflow configuration for model containers."""
-
-    s3: MLflowS3Config = Field(default_factory=MLflowS3Config, description="MLflow S3 settings")
-    tracking_uri: str = Field("http://mlflow-ui:5000", description="MLflow tracking server URI")
-    tracking_username: str = Field("admin", description="MLflow tracking server username")
-    tracking_password: str = Field("password", description="MLflow tracking server password")
-    enable_system_metrics_logging: bool = Field(True, description="Enable system metrics logging")
+    access_key_id: str | None = Field(None, description="S3/MinIO access key")
+    secret_access_key: str | None = Field(None, description="S3/MinIO secret access key")
+    endpoint_url: str = Field("http://minio:9000", description="S3/MinIO endpoint URL")
 
 
 class AuthConfig(BaseModel):
@@ -285,33 +275,6 @@ class ProxyConfig(BaseModel):
     no_proxy: str = Field(
         "mlflow-ui,minio,graylog,auth-db,localhost",
         description="Comma-separated list of hosts to exclude from proxying",
-    )
-
-
-class CMSConfig(BaseModel):
-    """CogStack ModelServe related configuration."""
-
-    host_url: str = Field("https://proxy/cms", description="CMS host URL")
-    project_name: str = Field("cms", description="CMS Docker Compose project name")
-    server_port: int = Field(8000, description="CMS server port")
-    network: str = Field("cogstack-model-serve_cms", description="CMS Docker network")
-    image: str = Field(
-        "cogstacksystems/cogstack-modelserve:latest",
-        description="Docker image for CogStack ModelServe",
-    )
-    volumes: dict[str, str] = Field(
-        default_factory=lambda: {"retrained-models": "/app/model/retrained"},
-        description="Volume mappings for model containers (volume_name: container_path)",
-    )
-    gelf_input_uri: str = Field("http://graylog:12201", description="GELF input URI for logging")
-    enable_evaluation_apis: bool = Field(True, description="Enable CMS evaluation APIs")
-    enable_previews_apis: bool = Field(True, description="Enable CMS preview APIs")
-    enable_training_apis: bool = Field(True, description="Enable CMS training APIs")
-    mlflow: MLflowConfig = Field(default_factory=MLflowConfig, description="MLflow configuration")
-    auth: AuthConfig = Field(default_factory=AuthConfig, description="Authentication configuration")
-    proxy: ProxyConfig = Field(default_factory=ProxyConfig, description="Proxy configuration")
-    health_check: HealthCheckConfig = Field(
-        default_factory=HealthCheckConfig, description="Health check configuration"
     )
 
 
@@ -360,6 +323,23 @@ class RipperConfig(BaseModel):
     metrics_port: int = Field(8002, description="Prometheus metrics port")
 
 
+class TrackingConfig(BaseModel):
+    """Tracking server configuration.
+
+    Used by:
+    - CMG services (gateway/scheduler) to connect to tracking server for fetching model metadata
+    - CMS containers as environment variables for logging training runs and metrics
+    """
+
+    uri: str = Field("http://mlflow-ui:5000", description="Tracking server URI")
+    username: str = Field("admin", description="Tracking server username")
+    password: str = Field("password", description="Tracking server password")
+    s3: S3Config = Field(default_factory=S3Config, description="Tracking server artifact store")
+    enable_system_metrics_logging: bool = Field(
+        True, description="Enable system metrics logging (for CMS containers)"
+    )
+
+
 class LabelsConfig(BaseModel):
     """Docker labels used by CogStack Model Gateway.
 
@@ -398,6 +378,35 @@ class LabelsConfig(BaseModel):
     )
 
 
+class CMSConfig(BaseModel):
+    """CogStack ModelServe related configuration."""
+
+    host_url: str = Field("https://proxy/cms", description="CMS host URL")
+    project_name: str = Field("cms", description="CMS Docker Compose project name")
+    server_port: int = Field(8000, description="CMS server port")
+    network: str = Field("cogstack-model-serve_cms", description="CMS Docker network")
+    image: str = Field(
+        "cogstacksystems/cogstack-modelserve:latest",
+        description="Docker image for CogStack ModelServe",
+    )
+    volumes: dict[str, str] = Field(
+        default_factory=lambda: {"retrained-models": "/app/model/retrained"},
+        description="Volume mappings for model containers (volume_name: container_path)",
+    )
+    gelf_input_uri: str = Field("http://graylog:12201", description="GELF input URI for logging")
+    enable_evaluation_apis: bool = Field(True, description="Enable CMS evaluation APIs")
+    enable_previews_apis: bool = Field(True, description="Enable CMS preview APIs")
+    enable_training_apis: bool = Field(True, description="Enable CMS training APIs")
+    tracking: TrackingConfig = Field(
+        default_factory=TrackingConfig, description="Model tracking configuration"
+    )
+    auth: AuthConfig = Field(default_factory=AuthConfig, description="Authentication configuration")
+    proxy: ProxyConfig = Field(default_factory=ProxyConfig, description="Proxy configuration")
+    health_check: HealthCheckConfig = Field(
+        default_factory=HealthCheckConfig, description="Health check configuration"
+    )
+
+
 class Config(BaseModel):
     """Root configuration schema for CogStack Model Gateway."""
 
@@ -414,6 +423,9 @@ class Config(BaseModel):
         default_factory=SchedulerConfig, description="Scheduler configuration"
     )
     ripper: RipperConfig = Field(default_factory=RipperConfig, description="Ripper configuration")
+    tracking: TrackingConfig = Field(
+        default_factory=TrackingConfig, description="Model tracking server configuration"
+    )
 
     models: ModelsConfig = Field(
         default_factory=ModelsConfig, description="Model deployment and discovery configuration"
@@ -435,6 +447,31 @@ class Config(BaseModel):
     queue_manager: object | None = Field(None, description="Queue manager instance", exclude=True)
     task_manager: object | None = Field(None, description="Task manager instance", exclude=True)
     model_manager: object | None = Field(None, description="Model manager instance", exclude=True)
+    tracking_client: object | None = Field(
+        None, description="Model tracking client instance", exclude=True
+    )
+
+    _was_tracking_explicit: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def mark_explicit_tracking(cls, data: dict) -> dict:
+        """Mark if tracking config was explicitly provided before validation."""
+        if isinstance(data, dict):
+            if "tracking" in data:
+                data["_was_tracking_explicit"] = True
+        return data
+
+    @model_validator(mode="after")
+    def default_tracking_from_cms(self) -> "Config":
+        """Use cms.tracking as default tracking config if not explicitly provided.
+
+        This allows a single tracking server config (cms.tracking) to be used for both
+        CMS containers and CMG services when they point to the same server.
+        """
+        if not self._was_tracking_explicit:
+            self.tracking = self.cms.tracking.model_copy(deep=True)
+        return self
 
     def get_on_demand_model(self, service_name: str) -> OnDemandModel | None:
         """Get configuration for a specific on-demand model by service name."""

@@ -37,8 +37,7 @@ def _add_from_env_vars(target: dict, mapping: dict) -> None:
 
     Example mapping:
     {
-        "db": {"user": "CMG_DB_USER", "host": "CMG_DB_HOST"},
-        "cms": {"host_url": "CMS_HOST_URL"}
+        "db": {"user": "CMG_DB_USER", "host": "CMG_DB_HOST"}
     }
     """
     for key, val in mapping.items():
@@ -62,11 +61,6 @@ def _load_env_vars() -> dict:
     load_dotenv()
 
     env_map = {
-        "cms": {
-            "host_url": "CMS_HOST_URL",
-            "project_name": "CMS_PROJECT_NAME",
-            "server_port": "CMS_SERVER_PORT",
-        },
         "db": {
             "user": "CMG_DB_USER",
             "password": "CMG_DB_PASSWORD",
@@ -126,6 +120,9 @@ def load_config() -> Config:
             "cms": json_config.get("cms", {}),
             "models": json_config.get("models", {}),
             "labels": json_config.get("labels", {}),
+            # Only include tracking if explicitly provided in JSON
+            # Otherwise, the validator will copy from cms.tracking
+            **({"tracking": json_config["tracking"]} if "tracking" in json_config else {}),
         }
 
         try:

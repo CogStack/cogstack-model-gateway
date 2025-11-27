@@ -9,6 +9,7 @@ from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
+from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.scheduler.scheduler import Scheduler
 
 log = logging.getLogger("cmg.scheduler")
@@ -55,7 +56,16 @@ def initialize_connections(
 
     tm = TaskManager(db_manager=dbm)
 
-    return dbm, task_osm, results_osm, qm, tm
+    tc = TrackingClient(
+        tracking_uri=config.tracking.uri,
+        username=config.tracking.username,
+        password=config.tracking.password,
+        s3_endpoint_url=config.tracking.s3.endpoint_url,
+        s3_access_key_id=config.tracking.s3.access_key_id,
+        s3_secret_access_key=config.tracking.s3.secret_access_key,
+    )
+
+    return dbm, task_osm, results_osm, qm, tm, tc
 
 
 def main():
@@ -75,6 +85,7 @@ def main():
         results_object_store_manager=connections[2],
         queue_manager=connections[3],
         task_manager=connections[4],
+        tracking_client=connections[5],
     )
     scheduler.run()
 

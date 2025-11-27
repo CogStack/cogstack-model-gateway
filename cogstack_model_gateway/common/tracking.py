@@ -1,4 +1,5 @@
 import logging
+import os
 
 import mlflow
 import mlflow.models
@@ -74,8 +75,47 @@ class TrackingTask:
 
 
 class TrackingClient:
-    def __init__(self, tracking_uri: str = None):
+    def __init__(
+        self,
+        tracking_uri: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        s3_endpoint_url: str | None = None,
+        s3_access_key_id: str | None = None,
+        s3_secret_access_key: str | None = None,
+    ):
+        """Initialize tracking client.
+
+        Args:
+            tracking_uri: Tracking server URI.
+                Defaults to MLFLOW_TRACKING_URI env var.
+            username: Tracking server username.
+                Defaults to MLFLOW_TRACKING_USERNAME env var.
+            password: Tracking server password.
+                Defaults to MLFLOW_TRACKING_PASSWORD env var.
+            s3_endpoint_url: S3 endpoint URL for artifact storage (e.g. MinIO).
+                Defaults to MLFLOW_S3_ENDPOINT_URL env var.
+            s3_access_key_id: S3 access key ID for downloading artifacts.
+                Defaults to AWS_ACCESS_KEY_ID env var.
+            s3_secret_access_key: S3 secret access key for downloading artifacts.
+                Defaults to AWS_SECRET_ACCESS_KEY env var.
+        """
         self.tracking_uri = tracking_uri or mlflow.get_tracking_uri()
+
+        # Set credentials in environment for MLflow and boto3
+        # Note: Always set these even if None/empty, as boto3 checks for their presence
+        if username is not None:
+            os.environ["MLFLOW_TRACKING_USERNAME"] = username
+        if password is not None:
+            os.environ["MLFLOW_TRACKING_PASSWORD"] = password
+
+        if s3_endpoint_url is not None:
+            os.environ["MLFLOW_S3_ENDPOINT_URL"] = s3_endpoint_url
+        if s3_access_key_id is not None:
+            os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key_id
+        if s3_secret_access_key is not None:
+            os.environ["AWS_SECRET_ACCESS_KEY"] = s3_secret_access_key
+
         self._mlflow_client = MlflowClient(self.tracking_uri)
         mlflow.set_tracking_uri(self.tracking_uri)
 
