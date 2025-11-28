@@ -284,14 +284,14 @@ class DatabaseConfig(BaseModel):
     user: str = Field("admin", description="Database username")
     password: str = Field("admin", description="Database password")
     name: str = Field("cmg_tasks", description="Database name")
-    host: str = Field("postgres", description="Database host")
+    host: str = Field("db", description="Database host")
     port: int = Field(5432, description="Database port")
 
 
 class ObjectStoreConfig(BaseModel):
     """Object store configuration."""
 
-    host: str = Field("minio", description="Object store host")
+    host: str = Field("object-store", description="Object store host")
     port: int = Field(9000, description="Object store port")
     access_key: str = Field("admin", description="Object store access key")
     secret_key: str = Field("admin123", description="Object store secret key")
@@ -305,7 +305,7 @@ class QueueConfig(BaseModel):
     user: str = Field("admin", description="Queue username")
     password: str = Field("admin", description="Queue password")
     name: str = Field("cmg_tasks", description="Queue name")
-    host: str = Field("rabbitmq", description="Queue host")
+    host: str = Field("queue", description="Queue host")
     port: int = Field(5672, description="Queue port")
 
 

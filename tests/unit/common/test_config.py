@@ -339,11 +339,11 @@ def test_config_comprehensive_structure(mock_file, mock_getenv, mock_load_dotenv
     assert config.db.password == "test_password"
 
     # Test object store config (defaults)
-    assert config.object_store.host == "minio"
+    assert config.object_store.host == "object-store"
     assert config.object_store.bucket_tasks == "cmg-tasks"
 
     # Test queue config (defaults)
-    assert config.queue.host == "rabbitmq"
+    assert config.queue.host == "queue"
     assert config.queue.name == "cmg_tasks"
 
     # Test models config structure
