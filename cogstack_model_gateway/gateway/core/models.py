@@ -99,7 +99,7 @@ def run_model_container(
         config.labels.deployment_type_label: deployment_type.value,
     }
 
-    base_cmd = "python cli/cli.py serve"
+    base_cmd = "/.venv/bin/python cli/cli.py serve"
     model_type_arg = f"--model-type {model_type}"
     model_name_arg = f"--model-name {model_name}"
     mlflow_uri_arg = f"--mlflow-model-uri {model_uri}"
@@ -126,6 +126,8 @@ def run_model_container(
         ],
         detach=True,
         environment={
+            "CMS_MODEL_NAME": model_name,
+            "CMS_MODEL_TYPE": model_type,
             "ENABLE_TRAINING_APIS": str(config.cms.enable_training_apis).lower(),
             "ENABLE_EVALUATION_APIS": str(config.cms.enable_evaluation_apis).lower(),
             "ENABLE_PREVIEWS_APIS": str(config.cms.enable_previews_apis).lower(),
