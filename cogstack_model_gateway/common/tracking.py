@@ -7,6 +7,7 @@ from mlflow import MlflowClient, MlflowException
 from mlflow.entities import Run, RunStatus
 
 MODEL_URI_TAG = "training.output.model_uri"
+MODEL_TYPE_TAG = "model_type"
 
 log = logging.getLogger("cmg.common")
 
@@ -183,4 +184,42 @@ class TrackingClient:
             }
         except MlflowException as e:
             log.error(f"Failed to get model metadata for model URI '{model_uri}': {e}")
+            return None
+
+    def get_model_type(self, model_uri: str) -> str | None:
+        """Get model type from tracking server.
+
+        CMS sets the 'model_type' tag on registered model versions. This method retrieves that tag
+        from the model registry, handling various URI formats uniformly by finding the corresponding
+        run first.
+
+        Args:
+            model_uri: MLflow model URI in any of these formats:
+                - 'models:/model-name/1' (version number)
+                - 'models:/model-name/Production' (stage name)
+                - 'runs:/run-id/artifact-path' (direct run reference)
+                - 's3://bucket/path' (direct artifact path)
+
+        Returns:
+            Model type string (e.g. 'medcat_deid') or None
+        """
+        try:
+            model_info = mlflow.models.get_model_info(model_uri)
+
+            if not model_info.run_id:
+                return None
+
+            model_versions = self._mlflow_client.search_model_versions(
+                filter_string=f"run_id='{model_info.run_id}'"
+            )
+
+            # Return model_type from the first matching model version
+            # (typically there's only one registered model per run)
+            if model_versions:
+                return model_versions[0].tags.get(MODEL_TYPE_TAG)
+
+            return None
+
+        except MlflowException as e:
+            log.warning(f"Failed to get model type for model URI '{model_uri}': {e}")
             return None
