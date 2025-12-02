@@ -70,7 +70,9 @@ async def wait_for_model_health(model_name: str, timeout: int, check_interval: f
     return False
 
 
-def deploy_on_demand_model(model_config: OnDemandModel, model_manager: ModelManager) -> Container:
+def deploy_on_demand_model(
+    model_config: OnDemandModel, model_type: str, model_manager: ModelManager
+) -> Container:
     """Deploy an on-demand model container.
 
     Creates database entry with ready=False, deploys container, then marks ready=True.
@@ -101,8 +103,7 @@ def deploy_on_demand_model(model_config: OnDemandModel, model_manager: ModelMana
         container = run_model_container(
             model_name=model_name,
             model_uri=model_config.model_uri,
-            # FIXME: add model type
-            model_type="medcat_umls",
+            model_type=model_type,
             deployment_type=ModelDeploymentType.AUTO,
             resources=model_config.deploy.resources if model_config.deploy else None,
         )
@@ -227,7 +228,13 @@ async def ensure_model_available(
 
     # Step 6: Deploy the model
     try:
-        container = deploy_on_demand_model(model_config, model_manager)
+        model_type = config.tracking_client.get_model_type(model_config.model_uri)
+        if model_type is None:
+            log.warning(
+                f"Could not determine model type for URI '{model_config.model_uri}', using default"
+            )
+            model_type = "medcat_umls"
+        container = deploy_on_demand_model(model_config, model_type, model_manager)
     except ValueError as e:
         # Another worker just created the entry (race condition)
         log.info("Another worker started deploying '%s', waiting for completion: %s", model_name, e)

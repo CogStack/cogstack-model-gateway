@@ -425,12 +425,16 @@ async def deploy_model(
             detail=f"TTL exceeds maximum allowed value of {manual_config.max_ttl} seconds.",
         )
 
+    model_type = tc.get_model_type(model_uri) if model_uri else None
+    if model_type is None:
+        log.warning(f"Could not determine model type for URI '{model_uri}', using default")
+        model_type = "medcat_umls"
+
     try:
         container = run_model_container(
             model_name=model_name,
             model_uri=model_uri,
-            # FIXME: add model type
-            model_type="medcat_umls",
+            model_type=model_type,
             deployment_type=ModelDeploymentType.MANUAL,
             ttl=ttl,
             resources=None,  # TODO: Add resource limits support for manual deployments
