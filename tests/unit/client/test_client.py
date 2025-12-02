@@ -486,17 +486,21 @@ async def test_get_model_success(mock_httpx_async_client):
     """Test get_model for successful retrieval."""
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
-    mock_response.json.return_value = {"name": "my_model", "status": "deployed"}
+    mock_response.json.return_value = {
+        "name": "my_model",
+        "uri": "models:/my_model/1",
+        "is_running": True,
+    }
     mock_response.raise_for_status.return_value = mock_response
     mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         model_info = await client.get_model(model_name="my_model")
-    assert model_info == {"name": "my_model", "status": "deployed"}
+    assert model_info == {"name": "my_model", "uri": "models:/my_model/1", "is_running": True}
     mock_client_instance.request.assert_awaited_once_with(
         method="GET",
-        url="http://test-gateway.com/models/my_model/info",
-        params=None,
+        url="http://test-gateway.com/models/my_model",
+        params={"verbose": False},
         data=None,
         json=None,
         files=None,
@@ -509,7 +513,11 @@ async def test_get_model_with_default_model(mock_httpx_async_client):
     """Test get_model using the default model."""
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
-    mock_response.json.return_value = {"name": "default_model", "status": "deployed"}
+    mock_response.json.return_value = {
+        "name": "default_model",
+        "uri": "models:/default_model/1",
+        "is_running": True,
+    }
     mock_response.raise_for_status.return_value = mock_response
     mock_client_instance.request.return_value = mock_response
 
@@ -517,11 +525,15 @@ async def test_get_model_with_default_model(mock_httpx_async_client):
         base_url="http://test-gateway.com", default_model="default_model"
     ) as client:
         model_info = await client.get_model()
-    assert model_info == {"name": "default_model", "status": "deployed"}
+    assert model_info == {
+        "name": "default_model",
+        "uri": "models:/default_model/1",
+        "is_running": True,
+    }
     mock_client_instance.request.assert_awaited_once_with(
         method="GET",
-        url="http://test-gateway.com/models/default_model/info",
-        params=None,
+        url="http://test-gateway.com/models/default_model",
+        params={"verbose": False},
         data=None,
         json=None,
         files=None,
@@ -830,7 +842,7 @@ def test_sync_client_multiple_requests_reuse_resources(mock_httpx_async_client):
         # Verify the specific URLs were called
         call_args = [call[1]["url"] for call in mock_client_instance.request.call_args_list]
         assert "http://test-gateway.com/models/" in call_args[0]  # get_models
-        assert "http://test-gateway.com/models/model1/info" in call_args[1]  # get_model
+        assert "http://test-gateway.com/models/model1" in call_args[1]  # get_model
 
     finally:
         del client

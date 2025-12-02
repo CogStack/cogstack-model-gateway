@@ -149,10 +149,25 @@ def test_get_models(client: TestClient):
     assert response.status_code == 200
 
     response_json = response.json()
-    assert isinstance(response_json, list)
-    assert len(response_json) == 1
-    assert all(key in response_json[0] for key in ["name", "uri"])
-    assert response_json[0]["name"] == TEST_MODEL_SERVICE
+    assert isinstance(response_json, dict)
+    assert "running" in response_json
+    assert "on_demand" in response_json
+    assert isinstance(response_json["running"], list)
+    assert isinstance(response_json["on_demand"], list)
+    assert len(response_json["running"]) == 1
+    assert all(key in response_json["running"][0] for key in ["name", "uri", "is_running"])
+    assert response_json["running"][0]["name"] == TEST_MODEL_SERVICE
+    assert response_json["running"][0]["is_running"] is True
+
+
+def test_get_model(client: TestClient, test_model_service_ip: str):
+    response = client.get(f"/models/{test_model_service_ip}")
+    assert response.status_code == 200
+
+    response_json = response.json()
+    assert all(key in response_json for key in ["name", "uri", "is_running"])
+    assert response_json["name"] == TEST_MODEL_SERVICE
+    assert response_json["is_running"] is True
 
 
 def test_get_model_info(client: TestClient, test_model_service_ip: str):

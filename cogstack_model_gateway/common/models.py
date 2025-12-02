@@ -126,6 +126,17 @@ class ModelManager:
         return model
 
     @with_db_session
+    def get_model_deployment_type(
+        self, session: Session, model_name: str
+    ) -> ModelDeploymentType | None:
+        """Get a model's deployment type by name returning None if not found."""
+        model = session.get(Model, model_name)
+        if not model:
+            log.debug("Model record not found: %s", model_name)
+            return None
+        return model.deployment_type
+
+    @with_db_session
     def mark_model_ready(self, session: Session, model_name: str) -> Model | None:
         """Mark a model as ready returning None if not found."""
         model = session.get(Model, model_name)

@@ -26,6 +26,7 @@ from cogstack_model_gateway.gateway.routers.utils import (
     get_query_params,
     validate_model_name,
 )
+from cogstack_model_gateway.gateway.schemas import ModelResponse, ModelsListResponse
 
 DEFAULT_CONTENT_TYPE = "text/plain"
 SUPPORTED_ENDPOINTS = {
@@ -140,49 +141,170 @@ async def ensure_model_dependency(
         )
 
 
-def _prepare_model_response(
-    models: list[dict], tracking_client: TrackingClient, verbose: bool
-) -> list[dict]:
-    """Prepare model list for API response."""
-    for model in models:
-        if model_name := model.pop("service_name", None):
-            model["name"] = model_name
-        if model_uri := model.pop("model_uri", None):
-            model["uri"] = model_uri
-            if verbose:
-                if model_info := tracking_client.get_model_metadata(model_uri):
-                    model["info"] = model_info
-    return models
+def _build_model_response(
+    model_dict: dict,
+    is_running: bool,
+    tracking_client: TrackingClient,
+    model_manager: ModelManager,
+    verbose: bool = False,
+) -> ModelResponse:
+    """Build unified model response from model dictionary.
+
+    Args:
+        model_dict: Model data (from get_running_models() or OnDemandModel.model_dump())
+        is_running: Whether the model is currently running
+        tracking_client: Tracking client for accessing tracking metadata
+        model_manager: Model manager for database operations
+        verbose: Whether to include tracking metadata and runtime info
+    """
+    name = model_dict.get("service_name") or model_dict.get("name")
+    uri = model_dict.get("model_uri") or model_dict.get("uri")
+    minimal_response = {"name": name, "uri": uri, "is_running": is_running}
+
+    if not verbose:
+        return ModelResponse(**minimal_response)
+
+    cms_info = None
+    idle_ttl = model_dict.get("idle_ttl")
+    description = model_dict.get("description")
+    resources = model_dict.get("deploy", {}).get("resources")
+    model_type = tracking_client.get_model_type(uri) if uri else None
+    tracking_metadata = tracking_client.get_model_metadata(uri) if uri else None
+    deployment_type = model_dict.get("deployment_type", ModelDeploymentType.AUTO.value)
+
+    if is_running:
+        try:
+            # FIXME: Enable SSL verification when certificates are properly set up
+            cms_response = requests.get(get_cms_url(name, "info"), verify=False)
+            cms_response.raise_for_status()
+            cms_info = cms_response.json()
+
+            if not model_type:
+                model_type = cms_info.get("model_type")
+            if not description:
+                description = cms_info.get("model_description")
+
+            deployment_type = (
+                model_manager.get_model_deployment_type(name) or ModelDeploymentType.STATIC.value
+            )
+
+        except requests.RequestException as e:
+            log.warning(f"Failed to fetch CMS info for model '{name}': {e}")
+
+    return ModelResponse(
+        **{
+            **minimal_response,
+            "description": description,
+            "model_type": model_type,
+            "deployment_type": deployment_type,
+            "idle_ttl": idle_ttl,
+            "resources": resources,
+            "runtime": cms_info,
+            "tracking": tracking_metadata,
+        }
+    )
 
 
 @router.get(
     "/models/",
-    response_model=dict,
+    response_model=ModelsListResponse,
+    response_model_exclude_none=True,
     tags=["models"],
     name="List running and on-demand CogStack Model Serve instances",
 )
 async def get_models(
     config: Annotated[Config, Depends(get_config)],
     verbose: Annotated[
-        bool | None, Query(description="Include model metadata from the tracking server")
+        bool | None, Query(description="Include tracking metadata and runtime info")
     ] = False,
 ):
     """List running model servers and on-demand models that can be auto-deployed.
 
     Returns a dictionary with two keys:
     - 'running': List of currently running model containers
-    - 'on_demand': List of models that can be deployed on-demand
+    - 'on_demand': List of models that can be deployed on-demand (excludes already running models)
 
-    Metadata is only included if the `verbose` query parameter is set to `true` and a tracking URI
-    is found for the model server.
+    When verbose=false (default):
+    - Returns minimal info: name, uri, is_running
+
+    When verbose=true:
+    - Includes description, model_type, deployment_type, idle_ttl, resources
+    - Includes 'tracking': Model metadata from tracking server (e.g. uuid, run_id, signature)
+    - Includes 'runtime': CMS /info response (for running models only)
     """
     running_models = get_running_models()
-    on_demand_models = [model.model_dump() for model in config.list_on_demand_models()]
+    running_model_names = {m["service_name"] for m in running_models}
 
-    return {
-        "running": _prepare_model_response(running_models, config.tracking_client, verbose),
-        "on_demand": _prepare_model_response(on_demand_models, config.tracking_client, verbose),
-    }
+    return ModelsListResponse(
+        running=[
+            _build_model_response(
+                model, True, config.tracking_client, config.model_manager, verbose
+            )
+            for model in running_models
+        ],
+        on_demand=[
+            _build_model_response(
+                model.model_dump(), False, config.tracking_client, config.model_manager, verbose
+            )
+            for model in config.list_on_demand_models()
+            if model.service_name not in running_model_names
+        ],
+    )
+
+
+@router.get(
+    "/models/{model_name}",
+    response_model=ModelResponse,
+    response_model_exclude_none=True,
+    tags=["models"],
+    name="Get information about a model (running or on-demand)",
+)
+async def get_model(
+    model_name: str,
+    config: Annotated[Config, Depends(get_config)],
+    verbose: Annotated[
+        bool | None, Query(description="Include tracking metadata and runtime info")
+    ] = False,
+):
+    """Get information about a model (running or on-demand).
+
+    When verbose=false (default):
+    - Returns minimal info: name, uri, is_running
+
+    When verbose=true:
+    - Includes description, model_type, deployment_type, idle_ttl, resources
+    - Includes 'tracking': Model metadata from tracking server (e.g. uuid, run_id, signature)
+    - Includes 'runtime': CMS /info response (for running models only)
+
+    Does not trigger auto-deployment for on-demand models.
+    """
+    running_models = {m["service_name"]: m for m in get_running_models()}
+    on_demand_models = {m.service_name: m for m in config.list_on_demand_models()}
+
+    if model_name in running_models:
+        return _build_model_response(
+            running_models[model_name], True, config.tracking_client, config.model_manager, verbose
+        )
+    elif model_name in on_demand_models:
+        return _build_model_response(
+            on_demand_models[model_name].model_dump(),
+            False,
+            config.tracking_client,
+            config.model_manager,
+            verbose,
+        )
+    else:
+        running_models_names = list(running_models.keys())
+        on_demand_models_names = [m for m in on_demand_models.keys() if m not in running_models]
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Model '{model_name}' not found:"
+                f" * Running models: {running_models_names}."
+                f" * On-demand models: {on_demand_models_names}."
+                "You can list all available models at /models."
+            ),
+        )
 
 
 @router.get(

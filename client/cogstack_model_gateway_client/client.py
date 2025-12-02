@@ -280,14 +280,47 @@ class GatewayClient:
 
     @require_client
     async def get_models(self, verbose: bool = False):
-        """Get the list of available models from the Gateway."""
+        """Get the list of available models from the Gateway.
+
+        Returns a dict with 'running' and 'on_demand' lists.
+        When verbose=False: each model includes name, uri, is_running.
+        When verbose=True: additionally includes description, model_type, deployment_type,
+                           idle_ttl, resources, tracking, and runtime (for running models).
+        """
         url = f"{self.base_url}/models/"
         resp = await self._request("GET", url, params={"verbose": verbose})
         return resp.json()
 
     @require_client
-    async def get_model(self, model_name: str = None):
-        """Get details of a specific model."""
+    async def get_model(self, model_name: str = None, verbose: bool = False):
+        """Get details of a specific model.
+
+        Args:
+            model_name: Name of the model. Uses default_model if not provided.
+            verbose: Include tracking metadata and CMS info (for running models).
+
+        Returns:
+            When verbose=False: dict with name, uri, is_running.
+            When verbose=True: additionally includes description, model_type, deployment_type,
+                               idle_ttl, resources, tracking, and runtime (for running models).
+        """
+        model_name = model_name or self.default_model
+        if not model_name:
+            raise ValueError("Please provide a model name or set a default model for the client.")
+        url = f"{self.base_url}/models/{model_name}"
+        resp = await self._request("GET", url, params={"verbose": verbose})
+        return resp.json()
+
+    @require_client
+    async def get_model_info(self, model_name: str = None):
+        """Get CMS /info endpoint response for a running model.
+
+        This mirrors the CMS /info endpoint and may trigger auto-deployment
+        for on-demand models.
+
+        Args:
+            model_name: Name of the model. Uses default_model if not provided.
+        """
         model_name = model_name or self.default_model
         if not model_name:
             raise ValueError("Please provide a model name or set a default model for the client.")
@@ -588,12 +621,39 @@ class GatewayClientSync:
         )
 
     def get_models(self, verbose: bool = False):
-        """Get the list of available models from the Gateway."""
+        """Get the list of available models from the Gateway.
+
+        Returns a dict with 'running' and 'on_demand' lists.
+        When verbose=False: each model includes name, uri, is_running.
+        When verbose=True: additionally includes description, model_type, deployment_type,
+                           idle_ttl, resources, tracking, and runtime (for running models).
+        """
         return asyncio.run(self._client.get_models(verbose=verbose))
 
-    def get_model(self, model_name: str = None):
-        """Get details of a specific model."""
-        return asyncio.run(self._client.get_model(model_name=model_name))
+    def get_model(self, model_name: str = None, verbose: bool = False):
+        """Get details of a specific model.
+
+        Args:
+            model_name: Name of the model. Uses default_model if not provided.
+            verbose: Include tracking metadata and CMS info (for running models).
+
+        Returns:
+            When verbose=False: dict with name, uri, is_running.
+            When verbose=True: additionally includes description, model_type, deployment_type,
+                               idle_ttl, resources, tracking, and runtime (for running models).
+        """
+        return asyncio.run(self._client.get_model(model_name=model_name, verbose=verbose))
+
+    def get_model_info(self, model_name: str = None):
+        """Get CMS /info endpoint response for a running model.
+
+        This mirrors the CMS /info endpoint and may trigger auto-deployment
+        for on-demand models.
+
+        Args:
+            model_name: Name of the model. Uses default_model if not provided.
+        """
+        return asyncio.run(self._client.get_model_info(model_name=model_name))
 
     def deploy_model(
         self,
