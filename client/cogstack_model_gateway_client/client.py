@@ -14,25 +14,30 @@ class GatewayClient:
         self,
         base_url: str,
         default_model: str = None,
+        request_timeout: float = 300.0,
         polling_interval: float = 2.0,
-        timeout: float | None = None,
+        polling_timeout: float | None = None,
     ):
         """Initialize the GatewayClient with the base Gateway URL and optional parameters.
 
         Args:
             base_url (str): The base URL of the Gateway service.
             default_model (str, optional): The default model to use for tasks. Defaults to None.
+            request_timeout (float, optional): The HTTP request timeout in seconds for individual
+                requests to the Gateway. Defaults to 300.0 seconds to accommodate slower requests,
+                e.g. the ones triggering model auto-deployment, but should be adjusted as needed.
             polling_interval (float, optional): The interval in seconds to poll for task completion.
                 Defaults to 2.0 seconds, with a minimum of 0.5 and maximum of 3.0 seconds.
-            timeout (float, optional): The client polling timeout while waiting for task completion.
-                Defaults to None (no timeout). When set to a float value, a TimeoutError will be
-                raised if the task takes longer than the specified number of seconds. When None,
-                the client will wait indefinitely for task completion.
+            polling_timeout (float, optional): The client polling timeout while waiting for task
+                completion. Defaults to None (no timeout). When set to a float value, a TimeoutError
+                will be raised if the task takes longer than the specified number of seconds. When
+                None, the client will wait indefinitely for task completion.
         """
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
+        self.request_timeout = request_timeout
         self.polling_interval = polling_interval
-        self.timeout = timeout
+        self.polling_timeout = polling_timeout
         self._client = None
 
     @property
@@ -44,7 +49,7 @@ class GatewayClient:
         self._polling_interval = max(0.5, min(value, 3.0))
 
     async def __aenter__(self):
-        self._client = httpx.AsyncClient()
+        self._client = httpx.AsyncClient(timeout=self.request_timeout)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -274,7 +279,10 @@ class GatewayClient:
                     error_message = task.get("error_message", "Unknown error")
                     raise TaskFailedError(task_uuid, error_message, task)
                 return task
-            if self.timeout is not None and asyncio.get_event_loop().time() - start > self.timeout:
+            if (
+                self.polling_timeout is not None
+                and asyncio.get_event_loop().time() - start > self.polling_timeout
+            ):
                 raise TimeoutError(f"Timed out waiting for task '{task_uuid}' to complete")
             await asyncio.sleep(self.polling_interval)
 
@@ -469,6 +477,10 @@ class GatewayClientSync:
     def base_url(self):
         return self._client.base_url
 
+    @base_url.setter
+    def base_url(self, value: str):
+        self._client.base_url = value
+
     @property
     def default_model(self):
         return self._client.default_model
@@ -476,6 +488,14 @@ class GatewayClientSync:
     @default_model.setter
     def default_model(self, value: str):
         self._client.default_model = value
+
+    @property
+    def request_timeout(self):
+        return self._client.request_timeout
+
+    @request_timeout.setter
+    def request_timeout(self, value: float | None):
+        self._client.request_timeout = value
 
     @property
     def polling_interval(self):
@@ -486,12 +506,12 @@ class GatewayClientSync:
         self._client.polling_interval = value
 
     @property
-    def timeout(self):
-        return self._client.timeout
+    def polling_timeout(self):
+        return self._client.polling_timeout
 
-    @timeout.setter
-    def timeout(self, value: float | None):
-        self._client.timeout = value
+    @polling_timeout.setter
+    def polling_timeout(self, value: float | None):
+        self._client.polling_timeout = value
 
     def submit_task(
         self,

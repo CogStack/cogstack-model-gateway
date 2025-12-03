@@ -30,12 +30,14 @@ async def test_gateway_client_init():
         base_url="http://localhost:8888/",
         default_model="test-model",
         polling_interval=0.5,
-        timeout=0.1,
+        polling_timeout=0.1,
+        request_timeout=120.0,
     )
     assert client.base_url == "http://localhost:8888"
     assert client.default_model == "test-model"
     assert client.polling_interval == 0.5
-    assert client.timeout == 0.1
+    assert client.polling_timeout == 0.1
+    assert client.request_timeout == 120.0
     assert client._client is None
 
     client = GatewayClient(
@@ -43,7 +45,8 @@ async def test_gateway_client_init():
         polling_interval=10,
     )
     assert client.polling_interval == 3.0  # Maximum 3.0 seconds
-    assert client.timeout is None  # Default timeout should be None
+    assert client.polling_timeout is None  # Default polling_timeout should be None
+    assert client.request_timeout == 300.0  # Default request_timeout
 
     client.polling_interval = 0.05
     assert client.polling_interval == 0.5  # Minimum is 0.5 seconds
@@ -377,16 +380,15 @@ async def test_wait_for_task_timeout(mock_httpx_async_client, mocker):
     mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
-    async with GatewayClient(base_url="http://test-gateway.com") as client:
-        client.timeout = 0.05
-        client.polling_interval = 0.5
-
+    async with GatewayClient(
+        base_url="http://test-gateway.com", polling_timeout=0.05, polling_interval=0.5
+    ) as client:
         with pytest.raises(
             TimeoutError, match="Timed out waiting for task 'task-polling' to complete"
         ):
             await client.wait_for_task("task-polling")
 
-        assert mock_get_task.await_count >= (client.timeout / client.polling_interval)
+        assert mock_get_task.await_count >= (client.polling_timeout / client.polling_interval)
 
 
 @pytest.mark.asyncio
@@ -406,10 +408,9 @@ async def test_wait_for_task_no_timeout(mock_httpx_async_client, mocker):
     mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
-    async with GatewayClient(base_url="http://test-gateway.com") as client:
-        assert client.timeout is None
-        client.polling_interval = 0.01
-
+    async with GatewayClient(
+        base_url="http://test-gateway.com", polling_timeout=None, polling_interval=0.01
+    ) as client:
         result = await client.wait_for_task("task-polling")
 
         assert result["status"] == "succeeded"
@@ -937,7 +938,7 @@ def test_sync_client_is_healthy(mock_httpx_async_client):
 
 
 def test_sync_client_timeout_handling(mock_httpx_async_client):
-    """Test that timeouts work correctly in the sync client."""
+    """Test that polling_timeout works correctly in the sync client."""
     _, mock_client_instance = mock_httpx_async_client
 
     async def slow_response(*args, **kwargs):
