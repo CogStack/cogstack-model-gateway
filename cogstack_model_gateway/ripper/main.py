@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -184,7 +185,7 @@ def purge_expired_containers(config: Config):
 def main():
     """Run the ripper service."""
     configure_logging()
-    config = load_config()
+    config = load_config(os.getenv("CONFIG_FILE"))
     config.model_manager = ModelManager(
         db_manager=DatabaseManager(
             user=config.db.user,

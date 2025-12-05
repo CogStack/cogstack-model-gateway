@@ -19,8 +19,17 @@ STALE_DEPLOYMENT_LOCK_SECONDS = 300  # 5 minutes
 
 
 def is_model_running(model_name: str) -> bool:
-    """Check if a model container is currently running."""
-    return model_name in {m["service_name"] for m in get_running_models()}
+    """Check if a model container is currently running.
+
+    Args:
+        model_name: Service name or IP address of the model
+    Returns:
+        True if a container with matching service name or IP address is found
+    """
+    running_models = get_running_models()
+    return model_name in (
+        {m["service_name"] for m in running_models} | {m["ip_address"] for m in running_models}
+    )
 
 
 async def wait_for_model_health(model_name: str, timeout: int, check_interval: float = 1.0) -> bool:

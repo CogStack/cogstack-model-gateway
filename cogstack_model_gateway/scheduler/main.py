@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 from prometheus_client import start_http_server
@@ -75,7 +76,7 @@ def main():
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     configure_logging()
-    config = load_config()
+    config = load_config(os.getenv("CONFIG_FILE"))
     connections = initialize_connections(config)
 
     start_http_server(config.scheduler.metrics_port)

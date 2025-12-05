@@ -9,23 +9,21 @@ from cogstack_model_gateway.common.config.models import Config
 
 log = logging.getLogger("cmg.common")
 
-CONFIG_FILE = os.getenv("CONFIG_FILE", "config.json")
-
 _config_instance: Config | None = None
 
 
-def _load_json_config() -> dict:
+def _load_json_config(config_file: str) -> dict:
     """Load configuration from JSON file."""
     try:
-        with open(CONFIG_FILE) as f:
+        with open(config_file) as f:
             config = json.load(f)
-            log.info(f"Loaded configuration from {CONFIG_FILE}")
+            log.info(f"Loaded configuration from {config_file}")
             return config
     except FileNotFoundError:
-        log.warning(f"Config file {CONFIG_FILE} not found, using defaults.")
+        log.warning(f"Config file {config_file} not found, using defaults.")
         return {}
     except json.JSONDecodeError:
-        log.error(f"Config file {CONFIG_FILE} is not a valid JSON file.")
+        log.error(f"Config file {config_file} is not a valid JSON file.")
         raise
 
 
@@ -93,7 +91,7 @@ def _load_env_vars() -> dict:
     return _create_config_from_env_vars(env_map)
 
 
-def load_config() -> Config:
+def load_config(config_file: str | None = "config.json") -> Config:
     """Load and validate configuration from JSON file and environment variables.
 
     This function:
@@ -102,6 +100,9 @@ def load_config() -> Config:
     3. Merges them into a unified structure
     4. Validates everything with Pydantic schema
     5. Caches the result for subsequent calls
+
+    Args:
+        config_file (optional): Path to JSON configuration file (default: "config.json")
 
     Returns:
         Config: Fully validated configuration object
@@ -113,7 +114,7 @@ def load_config() -> Config:
     global _config_instance
 
     if _config_instance is None:
-        json_config, env_config = _load_json_config(), _load_env_vars()
+        json_config, env_config = _load_json_config(config_file), _load_env_vars()
 
         merged_config = {
             **env_config,

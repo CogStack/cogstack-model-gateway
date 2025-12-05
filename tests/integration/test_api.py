@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -6,11 +7,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cogstack_model_gateway.common.config import Config, load_config
+from cogstack_model_gateway.common.models import ModelDeploymentType
 from cogstack_model_gateway.common.tasks import Status, TaskManager
 from cogstack_model_gateway.gateway.main import app
 from tests.integration.utils import (
     ANNOTATION_FIELDS_JSON,
     ANNOTATION_FIELDS_JSONL,
+    TEST_CONFIG_FILE,
     TEST_MODEL_SERVICE,
     configure_environment,
     download_result_object,
@@ -38,6 +41,8 @@ ANNOTATION_STATS_CSV_PATH = TEST_ASSETS_DIR / "annotation_stats.csv"
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(request: pytest.FixtureRequest, cleanup_cms: bool):
+    os.environ["CONFIG_FILE"] = str(TEST_CONFIG_FILE.absolute())
+
     postgres, rabbitmq, minio = setup_testcontainers(request)
 
     svc_addr_map = setup_cms(request, cleanup_cms)
@@ -45,25 +50,37 @@ def setup(request: pytest.FixtureRequest, cleanup_cms: bool):
 
     mlflow_addr = svc_addr_map["mlflow-ui"]["address"]
     mlflow_port = svc_addr_map["mlflow-ui"]["port"]
-    env = {
-        "MLFLOW_TRACKING_URI": f"http://{mlflow_addr}:{mlflow_port}",
-    }
+    mlflow_tracking_uri = f"http://{mlflow_addr}:{mlflow_port}"
+
+    minio_addr = svc_addr_map["minio"]["address"]
+    minio_port = svc_addr_map["minio"]["port"]
+    mlflow_s3_endpoint_url = f"http://{minio_addr}:{minio_port}"
 
     enable_cmg_logging = request.config.getoption("--enable-cmg-logging")
-    configure_environment(postgres, rabbitmq, minio, enable_logs=enable_cmg_logging, extras=env)
+    configure_environment(
+        postgres,
+        rabbitmq,
+        minio,
+        mlflow_tracking_uri=mlflow_tracking_uri,
+        mlflow_s3_endpoint_url=mlflow_s3_endpoint_url,
+        enable_logs=enable_cmg_logging,
+    )
 
     setup_scheduler(request)
 
 
 @pytest.fixture(scope="module")
-def client():
+def client(setup):
+    # Depends on setup to ensure CONFIG_FILE is set before TestClient creates the app
     with TestClient(app) as client:
         yield client
 
 
 @pytest.fixture(scope="module")
 def config(client: TestClient) -> Config:
-    return load_config()
+    config = load_config(str(TEST_CONFIG_FILE.absolute()))
+    config.database_manager.init_db()  # init DB schema to avoid setting up the migrations service
+    return config
 
 
 @pytest.fixture(scope="module")
@@ -72,9 +89,10 @@ def test_model_service_ip(request: pytest.FixtureRequest) -> str:
 
 
 def test_config_loaded(config: Config):
+    print(config)
     assert config
     assert all(
-        key in config
+        hasattr(config, key)
         for key in [
             "database_manager",
             "task_object_store_manager",
@@ -144,7 +162,7 @@ def test_get_task_by_uuid(client: TestClient, config: Config):
     assert res["tracking_id"] is None
 
 
-def test_get_models(client: TestClient):
+def test_get_models(client: TestClient, config: Config):
     response = client.get("/models/")
     assert response.status_code == 200
 
@@ -155,19 +173,52 @@ def test_get_models(client: TestClient):
     assert isinstance(response_json["running"], list)
     assert isinstance(response_json["on_demand"], list)
     assert len(response_json["running"]) == 1
-    assert all(key in response_json["running"][0] for key in ["name", "uri", "is_running"])
+    assert all(key in response_json["running"][0] for key in ["name", "is_running"])
     assert response_json["running"][0]["name"] == TEST_MODEL_SERVICE
     assert response_json["running"][0]["is_running"] is True
 
+    response = client.get("/models/", params={"verbose": True})
+    assert response.status_code == 200
 
-def test_get_model(client: TestClient, test_model_service_ip: str):
+    response_json = response.json()
+    assert isinstance(response_json, dict)
+    assert "running" in response_json
+    assert "on_demand" in response_json
+    assert len(response_json["running"]) == 1
+
+    model = response_json["running"][0]
+    assert all(
+        key in model for key in ["name", "is_running", "deployment_type", "model_type", "runtime"]
+    )
+    assert model["name"] == TEST_MODEL_SERVICE
+    assert model["is_running"] is True
+    assert model["deployment_type"] == ModelDeploymentType.STATIC.value
+    assert model["model_type"] is not None
+    assert "api_version" in model["runtime"]
+
+
+def test_get_model(client: TestClient, config: Config, test_model_service_ip: str):
     response = client.get(f"/models/{test_model_service_ip}")
     assert response.status_code == 200
 
     response_json = response.json()
-    assert all(key in response_json for key in ["name", "uri", "is_running"])
+    assert all(key in response_json for key in ["name", "is_running"])
     assert response_json["name"] == TEST_MODEL_SERVICE
     assert response_json["is_running"] is True
+
+    response = client.get(f"/models/{test_model_service_ip}", params={"verbose": True})
+    assert response.status_code == 200
+
+    response_json = response.json()
+    assert all(
+        key in response_json
+        for key in ["name", "is_running", "deployment_type", "model_type", "runtime"]
+    )
+    assert response_json["name"] == TEST_MODEL_SERVICE
+    assert response_json["is_running"] is True
+    assert response_json["deployment_type"] == ModelDeploymentType.STATIC.value
+    assert response_json["model_type"] is not None
+    assert "api_version" in response_json["runtime"]
 
 
 def test_get_model_info(client: TestClient, test_model_service_ip: str):

@@ -159,6 +159,7 @@ def _build_model_response(
     """
     name = model_dict.get("service_name") or model_dict.get("name")
     uri = model_dict.get("model_uri") or model_dict.get("uri")
+    ip_address = model_dict.get("ip_address")
     minimal_response = {"name": name, "uri": uri, "is_running": is_running}
 
     if not verbose:
@@ -174,8 +175,9 @@ def _build_model_response(
 
     if is_running:
         try:
+            cms_host = ip_address if ip_address else name
             # FIXME: Enable SSL verification when certificates are properly set up
-            cms_response = requests.get(get_cms_url(name, "info"), verify=False)
+            cms_response = requests.get(get_cms_url(cms_host, "info"), verify=False)
             cms_response.raise_for_status()
             cms_info = cms_response.json()
 
@@ -279,19 +281,16 @@ async def get_model(
     Does not trigger auto-deployment for on-demand models.
     """
     running_models = {m["service_name"]: m for m in get_running_models()}
+    running_models_ips = {m.get("ip_address"): m for m in get_running_models()}
     on_demand_models = {m.service_name: m for m in config.list_on_demand_models()}
 
-    if model_name in running_models:
+    if (model := running_models.get(model_name) or running_models_ips.get(model_name)) is not None:
         return _build_model_response(
-            running_models[model_name], True, config.tracking_client, config.model_manager, verbose
+            model, True, config.tracking_client, config.model_manager, verbose
         )
-    elif model_name in on_demand_models:
+    elif (model := on_demand_models.get(model_name)) is not None:
         return _build_model_response(
-            on_demand_models[model_name].model_dump(),
-            False,
-            config.tracking_client,
-            config.model_manager,
-            verbose,
+            model.model_dump(), False, config.tracking_client, config.model_manager, verbose
         )
     else:
         running_models_names = list(running_models.keys())

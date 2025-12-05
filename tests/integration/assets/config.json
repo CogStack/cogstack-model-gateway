@@ -1,0 +1,21 @@
+{
+    "cms": {
+        "host_url": "",
+        "project_name": "cmg-test",
+        "tracking": {
+            "username": "admin",
+            "password": "admin",
+            "s3": {
+                "access_key_id": "admin",
+                "secret_access_key": "admin123"
+            }
+        }
+    },
+    "models": {
+        "deployment": {
+            "manual": {
+                "max_ttl": 604800
+            }
+        }
+    }
+}

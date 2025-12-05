@@ -30,19 +30,35 @@ def _parse_cpus_to_nano(cpus_str: str) -> int:
 
 
 def get_running_models() -> list[dict]:
-    """Get a list of running containers corresponding to model servers."""
+    """Get a list of running containers corresponding to model servers.
+
+    Discovers CMS containers by:
+    1. Matching project name (com.docker.compose.project)
+    2. Filtering to those with the CMS model label OR connected to the CMS network
+
+    This allows discovery of both CMG-deployed models (with labels) and
+    external CMS containers (without labels but on the network).
+    """
     config = get_config()
     client = docker.from_env()
 
     containers = client.containers.list(
         filters={
             "status": "running",
-            "label": [
-                config.labels.cms_model_label,
-                f"{PROJECT_NAME_LABEL}={config.cms.project_name}",
-            ],
+            "label": [f"{PROJECT_NAME_LABEL}={config.cms.project_name}"],
         }
     )
+
+    # Filter to CMS containers: must have the CMS label OR be on the CMS network
+    cms_containers = []
+    for c in containers:
+        has_cms_label = config.labels.cms_model_label in c.labels
+        networks = c.attrs.get("NetworkSettings", {}).get("Networks", {})
+        on_cms_network = config.cms.network in networks
+
+        if has_cms_label or on_cms_network:
+            cms_containers.append(c)
+
     return [
         {
             "service_name": c.labels.get(SERVICE_NAME_LABEL, c.name),
@@ -56,7 +72,7 @@ def get_running_models() -> list[dict]:
             .get(config.cms.network, {})
             .get("IPAddress"),
         }
-        for c in containers
+        for c in cms_containers
     ]
 
 

@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     configure_logging()
     log.info("Initializing database and queue connections")
 
-    config = load_config()
+    config = load_config(os.getenv("CONFIG_FILE"))
     dbm = DatabaseManager(
         user=config.db.user,
         password=config.db.password,

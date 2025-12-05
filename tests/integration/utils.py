@@ -31,6 +31,7 @@ SCHEDULER_SCRIPT_PATH = "cogstack_model_gateway/scheduler/main.py"
 
 TEST_ASSETS = Path("tests/integration/assets")
 TEST_CMS_ENV_FILE = TEST_ASSETS / "cms.env"
+TEST_CONFIG_FILE = TEST_ASSETS / "config.json"
 TEST_CMS_MODEL_PACK = TEST_ASSETS / "simple_model4test-3.9-1.12.0_edeb88f7986cb05c.zip"
 
 COGSTACK_MODEL_SERVE_REPO = "https://github.com/CogStack/CogStack-ModelServe.git"
@@ -142,13 +143,29 @@ def configure_environment(
     postgres: PostgresContainer,
     rabbitmq: RabbitMqContainer,
     minio: MinioContainer,
+    mlflow_tracking_uri: str = None,
+    mlflow_s3_endpoint_url: str = None,
     enable_logs: bool = False,
-    extras: dict = None,
 ):
     log.info("Setting environment variables...")
     cmg_log_level = logging.INFO if enable_logs else logging.WARNING
     queue_connection_params = rabbitmq.get_connection_params()
     minio_host, minio_port = minio.get_config()["endpoint"].split(":")
+
+    # Update test config with dynamic MLflow tracking configuration
+    if mlflow_tracking_uri:
+        with open(TEST_CONFIG_FILE) as f:
+            config = json.load(f)
+
+        config["cms"]["tracking"]["uri"] = mlflow_tracking_uri
+
+        if mlflow_s3_endpoint_url:
+            config["cms"]["tracking"]["s3"]["endpoint_url"] = mlflow_s3_endpoint_url
+
+        with open(TEST_CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=4)
+            f.write("\n")
+
     env = {
         "CMG_COMMON_LOG_LEVEL": logging.getLevelName(logging.WARNING),
         "CMG_GATEWAY_LOG_LEVEL": logging.getLevelName(cmg_log_level),
@@ -156,7 +173,7 @@ def configure_environment(
         "CMG_DB_USER": postgres.username,
         "CMG_DB_PASSWORD": postgres.password,
         "CMG_DB_HOST": postgres.get_container_host_ip(),
-        "CMG_DB_PORT": postgres.get_exposed_port(postgres.port),
+        "CMG_DB_PORT": str(postgres.get_exposed_port(postgres.port)),
         "CMG_DB_NAME": "test",
         "CMG_QUEUE_USER": rabbitmq.username,
         "CMG_QUEUE_PASSWORD": rabbitmq.password,
@@ -170,9 +187,13 @@ def configure_environment(
         "CMG_OBJECT_STORE_BUCKET_TASKS": "test-tasks",
         "CMG_OBJECT_STORE_BUCKET_RESULTS": "test-results",
         "CMG_SCHEDULER_MAX_CONCURRENT_TASKS": "1",
-        "CMS_PROJECT_NAME": COGSTACK_MODEL_SERVE_COMPOSE_PROJECT_NAME,
-        "CMS_HOST_URL": "",  # Override potential local settings pointing to a proxy
-        **(extras or {}),
+        # MLflow configuration for test process to access tracking server and artifacts
+        "MLFLOW_TRACKING_URI": mlflow_tracking_uri or "",
+        "MLFLOW_TRACKING_USERNAME": "admin",
+        "MLFLOW_TRACKING_PASSWORD": "password",
+        "MLFLOW_S3_ENDPOINT_URL": mlflow_s3_endpoint_url or "",
+        "AWS_ACCESS_KEY_ID": "admin",
+        "AWS_SECRET_ACCESS_KEY": "admin123",
     }
     log.debug(env)
     os.environ.update(env)
