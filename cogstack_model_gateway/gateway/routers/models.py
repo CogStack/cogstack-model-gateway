@@ -8,13 +8,15 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Requ
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from cogstack_model_gateway.common.config import Config, get_config
+from cogstack_model_gateway.common.containers import get_models as get_model_containers
+from cogstack_model_gateway.common.containers import stop_and_remove_model_container
 from cogstack_model_gateway.common.models import ModelDeploymentType, ModelManager
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.core.auto_deploy import ensure_model_available
-from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
+from cogstack_model_gateway.gateway.core.models import run_model_container
 from cogstack_model_gateway.gateway.core.priority import calculate_task_priority
 from cogstack_model_gateway.gateway.prometheus.metrics import (
     gateway_models_deployed_total,
@@ -24,6 +26,8 @@ from cogstack_model_gateway.gateway.routers.utils import (
     get_cms_url,
     get_content_type,
     get_query_params,
+    resolve_and_validate_model_uri,
+    resolve_model_host,
     validate_model_name,
 )
 from cogstack_model_gateway.gateway.schemas import ModelResponse, ModelsListResponse
@@ -121,15 +125,16 @@ async def ensure_model_dependency(
     Raises:
         HTTPException(503): If model unavailable.
     """
+    model_manager: ModelManager = config.model_manager
     is_available = await ensure_model_available(
         model_name=model_name,
         config=config,
-        model_manager=config.model_manager,
+        model_manager=model_manager,
     )
 
     if not is_available:
-        running = [m["service_name"] for m in get_running_models()]
-        on_demand = [m.service_name for m in config.list_on_demand_models()]
+        running = [m["service_name"] for m in get_model_containers(all=False, managed_only=False)]
+        on_demand = [m.model_name for m in model_manager.list_on_demand_configs()]
         raise HTTPException(
             status_code=503,
             detail=(
@@ -151,14 +156,14 @@ def _build_model_response(
     """Build unified model response from model dictionary.
 
     Args:
-        model_dict: Model data (from get_running_models() or OnDemandModel.model_dump())
+        model_dict: Model data (from get_models() or OnDemandModel.model_dump())
         is_running: Whether the model is currently running
         tracking_client: Tracking client for accessing tracking metadata
         model_manager: Model manager for database operations
         verbose: Whether to include tracking metadata and runtime info
     """
-    name = model_dict.get("service_name") or model_dict.get("name")
-    uri = model_dict.get("model_uri") or model_dict.get("uri")
+    name = model_dict.get("service_name") or model_dict.get("model_name")
+    uri = model_dict.get("model_uri")
     ip_address = model_dict.get("ip_address")
     minimal_response = {"name": name, "uri": uri, "is_running": is_running}
 
@@ -168,7 +173,8 @@ def _build_model_response(
     cms_info = None
     idle_ttl = model_dict.get("idle_ttl")
     description = model_dict.get("description")
-    resources = model_dict.get("deploy", {}).get("resources")
+    deploy = model_dict.get("deploy") or {}
+    resources = deploy.get("resources") if isinstance(deploy, dict) else None
     model_type = tracking_client.get_model_type(uri) if uri else None
     tracking_metadata = tracking_client.get_model_metadata(uri) if uri else None
     deployment_type = model_dict.get("deployment_type", ModelDeploymentType.AUTO.value)
@@ -234,22 +240,21 @@ async def get_models(
     - Includes 'tracking': Model metadata from tracking server (e.g. uuid, run_id, signature)
     - Includes 'runtime': CMS /info response (for running models only)
     """
-    running_models = get_running_models()
+    model_manager: ModelManager = config.model_manager
+    running_models = get_model_containers(all=False, managed_only=False)
     running_model_names = {m["service_name"] for m in running_models}
 
     return ModelsListResponse(
         running=[
-            _build_model_response(
-                model, True, config.tracking_client, config.model_manager, verbose
-            )
+            _build_model_response(model, True, config.tracking_client, model_manager, verbose)
             for model in running_models
         ],
         on_demand=[
             _build_model_response(
-                model.model_dump(), False, config.tracking_client, config.model_manager, verbose
+                model.model_dump(), False, config.tracking_client, model_manager, verbose
             )
-            for model in config.list_on_demand_models()
-            if model.service_name not in running_model_names
+            for model in model_manager.list_on_demand_configs()
+            if model.model_name not in running_model_names
         ],
     )
 
@@ -280,9 +285,11 @@ async def get_model(
 
     Does not trigger auto-deployment for on-demand models.
     """
-    running_models = {m["service_name"]: m for m in get_running_models()}
-    running_models_ips = {m.get("ip_address"): m for m in get_running_models()}
-    on_demand_models = {m.service_name: m for m in config.list_on_demand_models()}
+    model_manager: ModelManager = config.model_manager
+    models = get_model_containers(all=False, managed_only=False)
+    running_models = {m["service_name"]: m for m in models}
+    running_models_ips = {m.get("ip_address"): m for m in models}
+    on_demand_models = {m.model_name: m for m in model_manager.list_on_demand_configs()}
 
     if (model := running_models.get(model_name) or running_models_ips.get(model_name)) is not None:
         return _build_model_response(
@@ -317,7 +324,7 @@ async def get_model_info(model_name: str, config: Annotated[Config, Depends(get_
     """Get information about a running model server through its `/info` API."""
     gateway_tasks_processed_total.labels(model=model_name, task="info").inc()
     # FIXME: Enable SSL verification when certificates are properly set up
-    response = requests.get(get_cms_url(model_name, "info"), verify=False)
+    response = requests.get(get_cms_url(resolve_model_host(model_name), "info"), verify=False)
     if response.status_code == 404:
         raise HTTPException(
             status_code=404,
@@ -381,28 +388,16 @@ async def deploy_model(
     tc: TrackingClient = config.tracking_client
     manual_config = config.get_manual_deployment_config()
 
-    if not tracking_id and not model_uri:
-        raise HTTPException(
-            status_code=400, detail="At least one of tracking_id or model_uri must be provided."
-        )
+    model_uri, tracking_id = resolve_and_validate_model_uri(
+        tracking_id=tracking_id,
+        model_uri=model_uri,
+        tracking_client=config.tracking_client,
+        require_validation=manual_config.require_model_uri_validation,
+    )
 
-    if not model_uri and tracking_id:
-        model_uri = tc.get_model_uri(tracking_id)
-        if not model_uri:
-            raise HTTPException(
-                status_code=404, detail=f"Model not found for tracking ID '{tracking_id}'."
-            )
-
-    if manual_config.require_model_uri_validation and model_uri:
-        model_metadata = tc.get_model_metadata(model_uri)
-        if model_metadata is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Model URI '{model_uri}' could not be validated. Model may not exist.",
-            )
-        log.debug(f"Validated model URI '{model_uri}': {model_metadata}")
-
-    if any(model["service_name"] == model_name for model in get_running_models()):
+    if any(
+        m["service_name"] == model_name for m in get_model_containers(all=False, managed_only=False)
+    ):
         raise HTTPException(
             status_code=409,
             detail=(
@@ -446,9 +441,7 @@ async def deploy_model(
 
     except DockerException as e:
         log.error(f"Failed to deploy model '{model_name}': {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to deploy model '{model_name}': {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to deploy model '{model_name}'")
 
     gateway_models_deployed_total.labels(model=model_name, model_uri=model_uri).inc()
 
@@ -460,6 +453,78 @@ async def deploy_model(
         "container_name": container.name,
         "ttl": ttl,
     }
+
+
+@router.delete(
+    "/models/{model_name}",
+    status_code=204,
+    tags=["models"],
+    name="Remove a deployed model server",
+)
+async def remove_model(
+    config: Annotated[Config, Depends(get_config)],
+    model_name: Annotated[str, Depends(validate_model_name)],
+    force: Annotated[
+        bool, Query(description=("Force removal even if the model is not found"))
+    ] = False,
+):
+    """Remove a deployed model server.
+
+    This endpoint stops and removes the Docker container for the specified model and deletes its
+    database record. It can be used to manually clean up models that were deployed via POST /models
+    or auto-deployed models that should be removed before their TTL expires.
+
+    By default, this only removes models that are currently running. Use force=true to attempt
+    removal even if the model is not running (useful for cleanup of paused, restarting, or stopped
+    containers).
+    """
+    # TODO: This is a privileged operation requiring admin permissions (pending authz integration)
+    model_manager: ModelManager = config.model_manager
+
+    all_models = get_model_containers(all=True)
+    matching_models = [m for m in all_models if m["service_name"] == model_name]
+
+    if not matching_models:
+        if force:
+            try:
+                model_manager.delete_model(model_name)
+                return None
+            except Exception as e:
+                log.error(f"Failed to delete model record for '{model_name}': {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to delete model record for '{model_name}'"
+                )
+        else:
+            raise HTTPException(
+                status_code=404, detail=f"Container for model '{model_name}' not found"
+            )
+
+    model = matching_models[0]
+
+    if model["container"].status != "running" and not force:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Model '{model_name}' is not currently running."
+                " Use force=true to remove stopped containers."
+            ),
+        )
+
+    try:
+        stop_and_remove_model_container(model["container"])
+    except DockerException as e:
+        log.error(f"Failed to remove container for model '{model_name}': {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to remove container for model '{model_name}'"
+        )
+
+    try:
+        model_manager.delete_model(model_name)
+    except Exception as e:
+        # Skip raising since container is already removed
+        log.error(f"Error deleting model record {model_name} from database: {e}")
+
+    return None
 
 
 @router.post(
@@ -556,7 +621,7 @@ async def execute_task(
     task_dict = {
         "uuid": task_uuid,
         "method": endpoint["method"],
-        "url": get_cms_url(model_name, endpoint["url"]),
+        "url": get_cms_url(resolve_model_host(model_name), endpoint["url"]),
         "content_type": content_type,
         "params": query_params,
         "refs": references,

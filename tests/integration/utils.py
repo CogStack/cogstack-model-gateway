@@ -19,6 +19,7 @@ from testcontainers.minio import MinioContainer
 from testcontainers.postgres import PostgresContainer
 from testcontainers.rabbitmq import RabbitMqContainer
 
+from cogstack_model_gateway.common.containers import get_models
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import Status, Task, TaskManager
@@ -32,15 +33,17 @@ SCHEDULER_SCRIPT_PATH = "cogstack_model_gateway/scheduler/main.py"
 TEST_ASSETS = Path("tests/integration/assets")
 TEST_CMS_ENV_FILE = TEST_ASSETS / "cms.env"
 TEST_CONFIG_FILE = TEST_ASSETS / "config.json"
+TEST_DOCKER_COMPOSE_CMS_OVERRIDE = TEST_ASSETS / "docker-compose.override.yml"
+TEST_DOCKER_COMPOSE_MLFLOW_OVERRIDE = TEST_ASSETS / "docker-compose-mlflow.override.yml"
 TEST_CMS_MODEL_PACK = TEST_ASSETS / "simple_model4test-3.9-1.12.0_edeb88f7986cb05c.zip"
 
 COGSTACK_MODEL_SERVE_REPO = "https://github.com/CogStack/CogStack-ModelServe.git"
-COGSTACK_MODEL_SERVE_COMMIT = "ebda7d288204373f603216d04103dfc1c0a07042"
+COGSTACK_MODEL_SERVE_COMMIT = "19eb76535acae284966b53f98c398b05fb15bae5"
 COGSTACK_MODEL_SERVE_LOCAL_PATH = Path("downloads/CogStack-ModelServe")
 COGSTACK_MODEL_SERVE_COMPOSE = "docker-compose.yml"
 COGSTACK_MODEL_SERVE_COMPOSE_PROJECT_NAME = "cmg-test"
 COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW = "docker-compose-mlflow.yml"
-COGSTACK_MODEL_SERVE_NETWORK = "cogstack-model-serve_cms"
+COGSTACK_MODEL_SERVE_NETWORK = "cmg-test_cms"
 
 TEST_MODEL_SERVICE = "medcat-umls"
 
@@ -105,6 +108,8 @@ def setup_scheduler(request: pytest.FixtureRequest):
 
 
 def setup_cms(request: pytest.FixtureRequest, cleanup_cms: bool) -> dict[str, dict]:
+    cleanup_deployed_model_containers()
+
     try:
         clone_cogstack_model_serve()
     except Exception as e:
@@ -254,22 +259,36 @@ def start_cogstack_model_serve(model_services: list[str]) -> list[DockerCompose]
 
     log.debug(f"CogStack Model Serve environment file: {env_file_path}")
 
+    shutil.copy(
+        TEST_DOCKER_COMPOSE_CMS_OVERRIDE,
+        COGSTACK_MODEL_SERVE_LOCAL_PATH / TEST_DOCKER_COMPOSE_CMS_OVERRIDE.name,
+    )
+    shutil.copy(
+        TEST_DOCKER_COMPOSE_MLFLOW_OVERRIDE,
+        COGSTACK_MODEL_SERVE_LOCAL_PATH / TEST_DOCKER_COMPOSE_MLFLOW_OVERRIDE.name,
+    )
+
     global cms_compose, cms_mlflow_compose
 
     try:
         cms_compose = DockerCompose(
             context=COGSTACK_MODEL_SERVE_LOCAL_PATH,
-            compose_file_name=COGSTACK_MODEL_SERVE_COMPOSE,
+            compose_file_name=[COGSTACK_MODEL_SERVE_COMPOSE, TEST_DOCKER_COMPOSE_CMS_OVERRIDE.name],
             env_file=".env",
             services=model_services,
+            pull=True,
         )
         cms_compose.start()
 
         cms_mlflow_compose = DockerCompose(
             context=COGSTACK_MODEL_SERVE_LOCAL_PATH,
-            compose_file_name=COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW,
+            compose_file_name=[
+                COGSTACK_MODEL_SERVE_COMPOSE_MLFLOW,
+                TEST_DOCKER_COMPOSE_MLFLOW_OVERRIDE.name,
+            ],
             env_file=".env",
             services=["mlflow-ui", "mlflow-db", "minio", "model-bucket-init"],
+            pull=True,
         )
         cms_mlflow_compose.start()
 
@@ -307,8 +326,33 @@ def stop_cogstack_model_serve(compose_envs: list[DockerCompose]):
     log.info("Stopping CogStack Model Serve")
     for compose_env in compose_envs:
         log.debug(f"Stopping {compose_env}...")
-        compose_env.stop()
+        compose_env.stop(down=True)
     remove_cogstack_model_serve()
+
+
+def cleanup_deployed_model_containers():
+    """Clean up any CMG-managed model containers (manual/auto deployments).
+
+    Removes containers with labels indicating they were deployed by the model gateway for the tests,
+    including both running and stopped containers.
+    """
+    log.info("Cleaning up CMG-managed model containers deployed during testing...")
+    try:
+        if models := get_models(all=True, managed_only=True):
+            log.info(f"Found {len(models)} CMG-managed container(s) to clean up")
+            for model in models:
+                container = model["container"]
+                try:
+                    log.debug(f"Removing container '{container.name}'...")
+                    container.remove(force=True)
+                    log.debug(f"Removed container '{container.name}'")
+                except Exception as e:
+                    log.warning(f"Failed to remove container '{container.name}': {e}")
+        else:
+            log.debug("No CMG-managed model containers found")
+
+    except Exception as e:
+        log.warning(f"Failed to clean up deployed model containers: {e}")
 
 
 def validate_api_response(
@@ -426,3 +470,24 @@ def parse_mlflow_url(url: str) -> tuple:
     assert run.info.experiment_id == experiment_id
 
     return tracking_uri, experiment_id, run_id
+
+
+def get_deployed_model_container(model_name: str) -> Container | None:
+    return next(
+        (
+            m["container"]
+            for m in get_models(all=True, managed_only=True)
+            if m["service_name"] == model_name
+        ),
+        None,
+    )
+
+
+def count_deployed_model_containers() -> int:
+    return len(get_models(all=True, managed_only=True))
+
+
+def verify_container_labels(container: Container, expected_labels: dict):
+    for key, expected_value in expected_labels.items():
+        assert key in container.labels
+        assert container.labels[key] == expected_value

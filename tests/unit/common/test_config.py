@@ -1,6 +1,5 @@
 from unittest.mock import mock_open, patch
 
-import pytest
 from pydantic import BaseModel
 
 from cogstack_model_gateway.common.config import (
@@ -8,7 +7,6 @@ from cogstack_model_gateway.common.config import (
     get_config,
     load_config,
 )
-from cogstack_model_gateway.common.config.models import OnDemandModel
 
 TEST_ENV_VARS = {
     "CMG_DB_USER": "test_user",
@@ -184,9 +182,7 @@ def test_config_models_deployment():
     config = Config.model_validate({})
 
     assert hasattr(config.models.deployment, "auto")
-    assert hasattr(config.models.deployment.auto, "config")
-    assert hasattr(config.models.deployment.auto, "on_demand")
-    auto_config = config.models.deployment.auto.config
+    auto_config = config.models.deployment.auto
     assert auto_config.health_check_timeout == 300
     assert auto_config.default_idle_ttl == 3600
     assert auto_config.deployment_retry_attempts == 2
@@ -217,10 +213,8 @@ def test_config_helper_get_auto_deployment_config():
             "models": {
                 "deployment": {
                     "auto": {
-                        "config": {
-                            "health_check_timeout": 500,
-                            "default_idle_ttl": 7200,
-                        }
+                        "health_check_timeout": 500,
+                        "default_idle_ttl": 7200,
                     }
                 }
             }
@@ -230,88 +224,6 @@ def test_config_helper_get_auto_deployment_config():
     auto_config = config.get_auto_deployment_config()
     assert auto_config.health_check_timeout == 500
     assert auto_config.default_idle_ttl == 7200
-
-
-@pytest.mark.parametrize(
-    "config, expected",
-    [
-        (Config.model_validate({}), []),
-        (
-            Config.model_validate(
-                {
-                    "models": {
-                        "deployment": {
-                            "auto": {
-                                "on_demand": [
-                                    {
-                                        "service_name": "medcat-snomed",
-                                        "model_uri": "cogstacksystems/medcat-snomed:latest",
-                                        "description": "MedCAT SNOMED model",
-                                    },
-                                    {
-                                        "service_name": "custom-ner",
-                                        "model_uri": "custom/ner:v1",
-                                        "description": "Custom NER model",
-                                    },
-                                ]
-                            }
-                        }
-                    }
-                }
-            ),
-            [
-                OnDemandModel(
-                    service_name="medcat-snomed",
-                    model_uri="cogstacksystems/medcat-snomed:latest",
-                    description="MedCAT SNOMED model",
-                    idle_ttl=3600,  # Applied from AutoDeploymentConfig.default_idle_ttl
-                    deploy={},
-                ),
-                OnDemandModel(
-                    service_name="custom-ner",
-                    model_uri="custom/ner:v1",
-                    description="Custom NER model",
-                    idle_ttl=3600,  # Applied from AutoDeploymentConfig.default_idle_ttl
-                    deploy={},
-                ),
-            ],
-        ),
-    ],
-)
-def test_config_helper_list_on_demand_models(config, expected):
-    """Test list_on_demand_models helper method."""
-    result = config.list_on_demand_models()
-    assert isinstance(result, list)
-    assert result == expected
-
-
-def test_config_helper_get_on_demand_model():
-    """Test get_on_demand_model helper method."""
-    config = Config.model_validate(
-        {
-            "models": {
-                "deployment": {
-                    "auto": {
-                        "on_demand": [
-                            {
-                                "service_name": "medcat-snomed",
-                                "model_uri": "cogstacksystems/medcat-snomed:latest",
-                                "description": "MedCAT SNOMED model",
-                            }
-                        ]
-                    }
-                }
-            }
-        }
-    )
-
-    model = config.get_on_demand_model("medcat-snomed")
-    assert model is not None
-    assert model.service_name == "medcat-snomed"
-    assert model.model_uri == "cogstacksystems/medcat-snomed:latest"
-
-    model = config.get_on_demand_model("nonexistent")
-    assert model is None
 
 
 @patch("cogstack_model_gateway.common.config._config_instance", new=None)

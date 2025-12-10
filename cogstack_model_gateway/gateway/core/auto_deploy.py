@@ -7,10 +7,15 @@ import httpx
 from dateutil import parser
 from docker.models.containers import Container
 
-from cogstack_model_gateway.common.config.models import Config, OnDemandModel
-from cogstack_model_gateway.common.models import ModelDeploymentType, ModelManager
-from cogstack_model_gateway.gateway.core.models import get_running_models, run_model_container
-from cogstack_model_gateway.gateway.routers.utils import get_cms_url
+from cogstack_model_gateway.common.config.models import Config
+from cogstack_model_gateway.common.containers import get_models
+from cogstack_model_gateway.common.models import (
+    ModelDeploymentType,
+    ModelManager,
+    OnDemandModelConfig,
+)
+from cogstack_model_gateway.gateway.core.models import run_model_container
+from cogstack_model_gateway.gateway.routers.utils import get_cms_url, resolve_model_host
 
 log = logging.getLogger("cmg.gateway.auto_deploy")
 
@@ -26,7 +31,7 @@ def is_model_running(model_name: str) -> bool:
     Returns:
         True if a container with matching service name or IP address is found
     """
-    running_models = get_running_models()
+    running_models = get_models(all=False, managed_only=False)
     return model_name in (
         {m["service_name"] for m in running_models} | {m["ip_address"] for m in running_models}
     )
@@ -43,11 +48,11 @@ async def wait_for_model_health(model_name: str, timeout: int, check_interval: f
     Returns:
         True if model became healthy, False if timeout
     """
-    url = get_cms_url(model_name, "readyz")
     start_time = time.time()
     interval = check_interval
 
     log.info("Waiting for model '%s' to become ready (timeout: %ds)", model_name, timeout)
+    url = get_cms_url(resolve_model_host(model_name), "readyz")
 
     async with httpx.AsyncClient(verify=False) as client:
         while time.time() - start_time < timeout:
@@ -80,7 +85,7 @@ async def wait_for_model_health(model_name: str, timeout: int, check_interval: f
 
 
 def deploy_on_demand_model(
-    model_config: OnDemandModel, model_type: str, model_manager: ModelManager
+    model_config: OnDemandModelConfig, model_type: str, model_manager: ModelManager
 ) -> Container:
     """Deploy an on-demand model container.
 
@@ -97,7 +102,7 @@ def deploy_on_demand_model(
         ValueError: If model already exists in database (another worker is deploying)
         Exception: If container deployment fails
     """
-    model_name = model_config.service_name
+    model_name = model_config.model_name
 
     log.info("Starting deployment of on-demand model: %s", model_name)
 
@@ -114,6 +119,7 @@ def deploy_on_demand_model(
             model_uri=model_config.model_uri,
             model_type=model_type,
             deployment_type=ModelDeploymentType.AUTO,
+            ttl=model_config.idle_ttl,
             resources=model_config.deploy.resources if model_config.deploy else None,
         )
 
@@ -156,7 +162,7 @@ async def ensure_model_available(
         log.debug("Model '%s' container is running, checking health", model_name)
 
         # Step 2: Check if model is healthy
-        url = get_cms_url(model_name, "readyz")
+        url = get_cms_url(resolve_model_host(model_name), "readyz")
         try:
             async with httpx.AsyncClient(verify=False) as client:
                 response = await client.get(url, timeout=5.0)
@@ -192,7 +198,7 @@ async def ensure_model_available(
         log.info("Model '%s' is not currently running", model_name)
 
     # Step 4: Model not running/healthy - check if we can auto-deploy
-    model_config = config.get_on_demand_model(model_name)
+    model_config = model_manager.get_on_demand_config(model_name)
     if not model_config:
         log.warning(
             "Model '%s' is not available and not configured for auto-deployment",
@@ -218,7 +224,7 @@ async def ensure_model_available(
             # Wait for the other worker's deployment to complete
             is_healthy = await wait_for_model_health(
                 model_name,
-                config.models.deployment.auto.config.health_check_timeout,
+                config.models.deployment.auto.health_check_timeout,
             )
             if is_healthy:
                 # Mark as ready (the other worker might have crashed after deploying)
@@ -249,7 +255,7 @@ async def ensure_model_available(
         log.info("Another worker started deploying '%s', waiting for completion: %s", model_name, e)
         is_healthy = await wait_for_model_health(
             model_name,
-            config.models.deployment.auto.config.health_check_timeout,
+            config.models.deployment.auto.health_check_timeout,
         )
         if is_healthy:
             model_manager.mark_model_ready(model_name)
@@ -262,7 +268,7 @@ async def ensure_model_available(
     # Step 7: Wait for model to become healthy
     is_healthy = await wait_for_model_health(
         model_name,
-        config.models.deployment.auto.config.health_check_timeout,
+        config.models.deployment.auto.health_check_timeout,
     )
 
     if is_healthy:

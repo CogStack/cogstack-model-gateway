@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -17,7 +18,6 @@ class ResourceLimits(BaseModel):
     cpus: str | None = Field(
         None,
         description="CPU limit as string (e.g., '2.0', '0.5')",
-        gt=0,
         examples=["2.0", "1.5", "0.5"],
     )
 
@@ -51,77 +51,29 @@ class DeployResources(BaseModel):
 class DeploySpec(BaseModel):
     """Deployment specification for model containers.
 
-    Currently supports resource constraints, but can be extended to include
-    other Docker Compose deploy options like restart_policy, labels, placement, etc.
+    Mirrors Docker Compose deploy specification.
     """
 
     resources: DeployResources | None = Field(None, description="Resource limits and reservations")
 
 
-class OnDemandModel(BaseModel):
-    """Configuration for an on-demand model that can be auto-deployed."""
+class TrackingMetadata(BaseModel):
+    """Model metadata from MLflow tracking server.
 
-    service_name: str = Field(
-        ...,
-        description="Docker service/container name for the model",
-        examples=["medcat-snomed-large", "medcat-umls-small"],
-    )
-    model_uri: str = Field(
-        ...,
-        description="URI pointing to the model artifact (e.g., MLflow model URI)",
-        examples=[
-            "s3://models/medcat/snomed_large_v1.0",
-            "models:/medcat-snomed/Production",
-            "runs:/abc123/model",
-        ],
-    )
-    idle_ttl: int | None = Field(
-        None,
-        description="Time in seconds after which an idle model is removed (overrides default)",
-        gt=0,
-        examples=[3600, 7200, 86400],
-    )
-    description: str | None = Field(
-        None,
-        description="Human-readable description of the model",
-        examples=["Large SNOMED CT model for clinical NLP"],
-    )
-    deploy: DeploySpec = Field(
-        default_factory=DeploySpec,
-        description="Deployment specification including resource constraints",
-    )
+    Dict representation of mlflow.models.ModelInfo, returned by TrackingClient.get_model_metadata().
+    """
 
-    @field_validator("service_name")
-    @classmethod
-    def validate_service_name(cls, v: str) -> str:
-        """Validate service name follows Docker naming constraints.
-
-        Docker container names must:
-        - Start with alphanumeric character
-        - Contain only alphanumeric, underscore, period, or hyphen
-        """
-        if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$", v):
-            raise ValueError(
-                f"Invalid service name: {v}. Must start with alphanumeric and contain "
-                "only alphanumeric, underscore, period, or hyphen characters"
-            )
-        if len(v) > 255:
-            raise ValueError(f"Service name too long: {v}. Maximum length is 255 characters")
-        return v
-
-    @field_validator("model_uri")
-    @classmethod
-    def validate_model_uri(cls, v: str) -> str:
-        """Validate model URI format."""
-        if not v or not v.strip():
-            raise ValueError("Model URI cannot be empty")
-        # Basic validation - just ensure it's not empty
-        # More specific validation (s3://, models:/, runs:/) can be added if needed
-        return v.strip()
+    uuid: str = Field(..., description="Model UUID")
+    run_id: str = Field(..., description="MLflow run ID that produced the model")
+    artifact_path: str = Field(..., description="Path to model artifact within the run")
+    signature: dict[str, Any] = Field(..., description="Model signature (inputs/outputs/params)")
+    flavors: dict[str, Any] = Field(..., description="Model flavors (e.g. python_function)")
+    utc_time_created: str = Field(..., description="UTC timestamp when model was created")
+    mlflow_version: str = Field(..., description="MLflow version used to log the model")
 
 
-class AutoDeploymentConfig(BaseModel):
-    """Configuration for automatic model deployment behaviour."""
+class AutoDeployment(BaseModel):
+    """Auto-deployment configuration for on-demand models."""
 
     health_check_timeout: int = Field(
         300,
@@ -147,39 +99,10 @@ class AutoDeploymentConfig(BaseModel):
         ge=0,
         examples=[0, 1, 2, 3],
     )
-
-
-class AutoDeployment(BaseModel):
-    """Auto-deployment configuration including behaviour and on-demand models."""
-
-    config: AutoDeploymentConfig = Field(
-        default_factory=AutoDeploymentConfig,
-        description="Auto-deployment behaviour configuration",
+    require_model_uri_validation: bool = Field(
+        False,
+        description="Whether to validate that the model URI exists before creating configs",
     )
-    on_demand: list[OnDemandModel] = Field(
-        default_factory=list,
-        description="List of models available for on-demand deployment",
-    )
-
-    @field_validator("on_demand")
-    @classmethod
-    def validate_unique_service_names(cls, v: list[OnDemandModel]) -> list[OnDemandModel]:
-        """Ensure all service names are unique."""
-        service_names = [model.service_name for model in v]
-        duplicates = [name for name in service_names if service_names.count(name) > 1]
-        if duplicates:
-            raise ValueError(
-                f"Duplicate service names found in on_demand models: {set(duplicates)}"
-            )
-        return v
-
-    @model_validator(mode="after")
-    def apply_default_idle_ttl(self) -> "AutoDeployment":
-        """Apply default_idle_ttl to on-demand models that don't have an explicit idle_ttl."""
-        for model in self.on_demand:
-            if model.idle_ttl is None:
-                model.idle_ttl = self.config.default_idle_ttl
-        return self
 
 
 class ManualDeployment(BaseModel):
@@ -227,6 +150,14 @@ class ModelsDeployment(BaseModel):
     static: StaticDeployment = Field(
         default_factory=StaticDeployment,
         description="Configuration for static model management",
+    )
+    use_ip_addresses: bool = Field(
+        False,
+        description=(
+            "Use IP addresses instead of container names when attempting to connect to CogStack"
+            " Model Serve instances. Set to true when components (scheduler, tests) run outside"
+            " Docker network."
+        ),
     )
 
 
@@ -473,20 +404,13 @@ class Config(BaseModel):
             self.tracking = self.cms.tracking.model_copy(deep=True)
         return self
 
-    def get_on_demand_model(self, service_name: str) -> OnDemandModel | None:
-        """Get configuration for a specific on-demand model by service name."""
-        for model in self.models.deployment.auto.on_demand:
-            if model.service_name == service_name:
-                return model
-        return None
+    def get_default_idle_ttl(self) -> int:
+        """Get the default idle TTL for auto-deployed on-demand models."""
+        return self.models.deployment.auto.default_idle_ttl
 
-    def list_on_demand_models(self) -> list[OnDemandModel]:
-        """Get list of all configured on-demand models."""
-        return self.models.deployment.auto.on_demand
-
-    def get_auto_deployment_config(self) -> AutoDeploymentConfig:
+    def get_auto_deployment_config(self) -> AutoDeployment:
         """Get auto-deployment behaviour configuration."""
-        return self.models.deployment.auto.config
+        return self.models.deployment.auto
 
     def get_manual_deployment_config(self) -> ManualDeployment:
         """Get manual deployment configuration."""

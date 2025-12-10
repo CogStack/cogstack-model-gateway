@@ -59,63 +59,11 @@
     "models": {
         "deployment": {
             "auto": {
-                "config": {
-                    "health_check_timeout": 300,
-                    "default_idle_ttl": 3600,
-                    "max_concurrent_deployments": 3,
-                    "deployment_retry_attempts": 2
-                },
-                "on_demand": [
-                    {
-                        "service_name": "medcat-snomed-large",
-                        "model_uri": "models:/medcat-snomed-large/Production",
-                        "idle_ttl": 7200,
-                        "description": "Large SNOMED CT model for clinical NLP with full vocab",
-                        "deploy": {
-                            "resources": {
-                                "limits": {
-                                    "memory": "4g",
-                                    "cpus": "2.0"
-                                },
-                                "reservations": {
-                                    "memory": "3g",
-                                    "cpus": "1.0"
-                                }
-                            }
-                        }
-                    },
-                    {
-                        "service_name": "medcat-umls-small",
-                        "model_uri": "s3://models/medcat/umls_small_v2.0.zip",
-                        "description": "Lightweight UMLS model for basic medical NER",
-                        "deploy": {
-                            "resources": {
-                                "limits": {
-                                    "memory": "2g",
-                                    "cpus": "1.0"
-                                }
-                            }
-                        }
-                    },
-                    {
-                        "service_name": "medcat-icd10",
-                        "model_uri": "runs:/abc123def456/model",
-                        "idle_ttl": 1800,
-                        "description": "ICD-10 coding model",
-                        "deploy": {
-                            "resources": {
-                                "limits": {
-                                    "memory": "3g",
-                                    "cpus": "1.5"
-                                },
-                                "reservations": {
-                                    "memory": "2g",
-                                    "cpus": "0.5"
-                                }
-                            }
-                        }
-                    }
-                ]
+                "health_check_timeout": 300,
+                "default_idle_ttl": 3600,
+                "max_concurrent_deployments": 3,
+                "deployment_retry_attempts": 2,
+                "require_model_uri_validation": false
             },
             "manual": {
                 "default_ttl": 86400,
@@ -123,7 +71,8 @@
                 "max_ttl": 604800,
                 "require_model_uri_validation": false
             },
-            "static": {}
+            "static": {},
+            "use_ip_addresses": false
         }
     },
     "labels": {

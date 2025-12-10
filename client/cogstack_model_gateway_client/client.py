@@ -344,13 +344,235 @@ class GatewayClient:
         model_uri: str = None,
         ttl: int = None,
     ):
-        """Deploy a CogStack Model Serve model through the Gateway."""
+        """Deploy a CogStack Model Serve model through the Gateway.
+
+        Args:
+            model_name: Name for the deployed model. Uses `default_model` if not provided.
+            tracking_id: Tracking server run ID (e.g. MLflow run ID) to resolve model URI
+                (optional if `model_uri` is provided explicitly).
+            model_uri: Direct URI to the model artifact (optional if `tracking_id` is provided).
+            ttl: Time-to-live in seconds. Set -1 to protect from auto-removal.
+
+        Returns:
+            dict: Deployment info with `container_id`, `container_name`, `model_uri`, `ttl`.
+        """
         model_name = model_name or self.default_model
         if not model_name:
             raise ValueError("Please provide a model name or set a default model for the client.")
         url = f"{self.base_url}/models/{model_name}"
         data = {"tracking_id": tracking_id, "model_uri": model_uri, "ttl": ttl}
         resp = await self._request("POST", url, json=data)
+        return resp.json()
+
+    @require_client
+    async def remove_model(self, model_name: str = None, force: bool = False):
+        """Remove a deployed CogStack Model Serve instance.
+
+        Args:
+            model_name: Name of the model to remove. Uses `default_model` if not provided.
+            force: Force removal even if model is not running (for cleanup of stopped containers).
+
+        Returns:
+            None on success.
+        """
+        model_name = model_name or self.default_model
+        if not model_name:
+            raise ValueError("Please provide a model name or set a default model for the client.")
+        url = f"{self.base_url}/models/{model_name}"
+        return await self._request("DELETE", url, params={"force": force})
+
+    @require_client
+    async def list_on_demand_configs(self, include_disabled: bool = False):
+        """List on-demand model configurations.
+
+        Args:
+            include_disabled: Include disabled (soft-deleted) configurations.
+
+        Returns:
+            dict: Response with 'configs' list and 'total' count.
+        """
+        url = f"{self.base_url}/admin/on-demand"
+        resp = await self._request("GET", url, params={"include_disabled": include_disabled})
+        return resp.json()
+
+    @require_client
+    async def get_on_demand_config(self, model_name: str):
+        """Get the enabled on-demand configuration for a model given its name.
+
+        Args:
+            model_name: The model name to fetch the configuration for.
+
+        Returns:
+            dict: Configuration details.
+        """
+        url = f"{self.base_url}/admin/on-demand/{model_name}"
+        resp = await self._request("GET", url)
+        return resp.json()
+
+    @require_client
+    async def get_on_demand_config_history(self, model_name: str):
+        """Get all versions (enabled and disabled) of a configuration for a model given its name.
+
+        Args:
+            model_name: The model name to fetch the configuration history for.
+        Returns:
+            dict: Response with 'configs' list and 'total' count.
+        """
+        url = f"{self.base_url}/admin/on-demand/{model_name}/history"
+        resp = await self._request("GET", url)
+        return resp.json()
+
+    @require_client
+    async def create_on_demand_config(
+        self,
+        model_name: str,
+        tracking_id: str = None,
+        model_uri: str = None,
+        idle_ttl: int = None,
+        description: str = None,
+        deploy: dict = None,
+        replace_enabled: bool = True,
+        inherit_config: bool = True,
+    ):
+        """Create a new on-demand model configuration.
+
+        The model will be available for auto-deployment when requests target its `model_name`.
+        Only one **enabled** configuration can exist per `model_name` at a time.
+
+        You can specify the model using either `tracking_id` (e.g. MLflow run ID) or `model_uri`
+        (direct artifact URI), or both. While `model_uri` takes precedence, if only `tracking_id` is
+        provided, it will be resolved to a `model_uri`. If `require_model_uri_validation` is set to
+        true in the config, the resolved or explicit URI will be validated against the tracking
+        server.
+
+        Set `replace_enabled=true` to atomically disable any existing config and create the new one,
+        preserving the old config in history for potential rollback and replacing the original as
+        the enabled config. If `replace_enabled=false` and an enabled config already exists for the
+        same `model_name`, a `409 Conflict` error is returned.
+
+        Set `inherit_config=true` to copy settings from the currently enabled config for this model.
+        If no enabled config exists, a new config will be created as long as the mandatory fields
+        are provided (i.e. `model_uri` or `tracking_id`). Any explicitly provided fields will
+        override the inherited values. When creating a config from scratch is desired, it is
+        recommended to set `inherit_config=false` to avoid confusion and explicitly provide
+        configuration fields as needed.
+
+        Args:
+            model_name: Docker service/container name for the model.
+            tracking_id: Tracking server run ID to resolve model URI
+                (optional if `model_uri` is provided explicitly).
+            model_uri: Direct URI to the model artifact (optional if `tracking_id` is provided).
+            idle_ttl: Idle TTL in seconds.
+            description: Human-readable description.
+            deploy: Deployment specification dict with resources, etc.
+            replace_enabled: Replace existing enabled config (creates version history).
+            inherit_config: Inherit settings from existing enabled config if available.
+
+        Returns:
+            dict: Created configuration.
+        """
+        url = f"{self.base_url}/admin/on-demand"
+        data = {
+            "model_name": model_name,
+            "tracking_id": tracking_id,
+            "model_uri": model_uri,
+            "idle_ttl": idle_ttl,
+            "description": description,
+            "deploy": deploy,
+            "replace_enabled": replace_enabled,
+            "inherit_config": inherit_config,
+        }
+        resp = await self._request("POST", url, json=data)
+        return resp.json()
+
+    @require_client
+    async def update_on_demand_config(
+        self,
+        model_name: str,
+        tracking_id: str = None,
+        model_uri: str = None,
+        idle_ttl: int = None,
+        description: str = None,
+        deploy: dict = None,
+        clear_tracking_id: bool = False,
+        clear_idle_ttl: bool = False,
+        clear_description: bool = False,
+        clear_deploy: bool = False,
+    ):
+        """Update an existing on-demand model configuration in-place without creating a new version.
+
+        Only provided fields will be updated. Use `clear_*` flags to explicitly unset optional
+        fields. This does NOT create version history. To preserve history, use the client's
+        `create_on_demand_config` method with `replace_enabled=true`.
+
+        You can update the model reference using `tracking_id`, `model_uri`, or both. While
+        `model_uri` takes precedence, if only `tracking_id` is provided, it will be resolved to a
+        `model_uri`. If `require_model_uri_validation` is set to true in the config, the resolved or
+        explicit URI will be validated against the tracking server. Note that updating `tracking_id`
+        results in updating `model_uri` as well if the latter is not explicitly provided.
+
+        Note: If a model is currently running, changes will only take effect on the next deployment.
+
+        Args:
+            model_name: Name for the model configuration to update.
+            tracking_id: New tracking ID.
+            model_uri: New model URI.
+            idle_ttl: New idle TTL in seconds.
+            description: New description.
+            deploy: New deployment specification.
+            clear_tracking_id: Clear tracking_id field.
+            clear_idle_ttl: Clear idle_ttl (use system default).
+            clear_description: Clear description field.
+            clear_deploy: Clear deployment specification.
+
+        Returns:
+            dict: Updated configuration.
+        """
+        url = f"{self.base_url}/admin/on-demand/{model_name}"
+        data = {
+            "tracking_id": tracking_id,
+            "model_uri": model_uri,
+            "idle_ttl": idle_ttl,
+            "description": description,
+            "deploy": deploy,
+            "clear_tracking_id": clear_tracking_id,
+            "clear_idle_ttl": clear_idle_ttl,
+            "clear_description": clear_description,
+            "clear_deploy": clear_deploy,
+        }
+        resp = await self._request("PUT", url, json=data)
+        return resp.json()
+
+    @require_client
+    async def delete_on_demand_config(self, model_name: str):
+        """Soft-delete (disable) an on-demand model configuration.
+
+        The configuration is preserved in history and can be re-enabled. Does not stop currently
+        running instances.
+
+        Args:
+            model_name: Model name for which to disable active configuration.
+
+        Returns:
+            None on success.
+        """
+        url = f"{self.base_url}/admin/on-demand/{model_name}"
+        return await self._request("DELETE", url)
+
+    @require_client
+    async def enable_on_demand_config(self, config_id: int):
+        """Enable an on-demand configuration by ID.
+
+        Enables a config, disabling any currently enabled config for the same model.
+
+        Args:
+            config_id: ID of the configuration to enable.
+
+        Returns:
+            dict: Enabled configuration.
+        """
+        url = f"{self.base_url}/admin/on-demand/{config_id}/enable"
+        resp = await self._request("POST", url)
         return resp.json()
 
     @require_client
@@ -682,7 +904,18 @@ class GatewayClientSync:
         model_uri: str = None,
         ttl: int = None,
     ):
-        """Deploy a CogStack Model Serve model through the Gateway."""
+        """Deploy a CogStack Model Serve model through the Gateway.
+
+        Args:
+            model_name: Name for the deployed model. Uses `default_model` if not provided.
+            tracking_id: Tracking server run ID (e.g. MLflow run ID) to resolve model URI
+                (optional if `model_uri` is provided explicitly).
+            model_uri: Direct URI to the model artifact (optional if `tracking_id` is provided).
+            ttl: Time-to-live in seconds. Set -1 to protect from auto-removal.
+
+        Returns:
+            dict: Deployment info with `container_id`, `container_name`, `model_uri`, `ttl`.
+        """
         return asyncio.run(
             self._client.deploy_model(
                 model_name=model_name,
@@ -691,6 +924,195 @@ class GatewayClientSync:
                 ttl=ttl,
             )
         )
+
+    def remove_model(self, model_name: str = None, force: bool = False):
+        """Remove a deployed CogStack Model Serve instance.
+
+        Args:
+            model_name: Name of the model to remove. Uses `default_model` if not provided.
+            force: Force removal even if model is not running (for cleanup of stopped containers).
+
+        Returns:
+            None on success.
+        """
+        return asyncio.run(self._client.remove_model(model_name=model_name, force=force))
+
+    def list_on_demand_configs(self, include_disabled: bool = False):
+        """List on-demand model configurations.
+
+        Args:
+            include_disabled: Include disabled (soft-deleted) configurations.
+
+        Returns:
+            dict: Response with 'configs' list and 'total' count.
+        """
+        return asyncio.run(self._client.list_on_demand_configs(include_disabled=include_disabled))
+
+    def get_on_demand_config(self, model_name: str):
+        """Get the enabled on-demand configuration for a model given its name.
+
+        Args:
+            model_name: The model name to fetch the configuration for.
+
+        Returns:
+            dict: Configuration details.
+        """
+        return asyncio.run(self._client.get_on_demand_config(model_name=model_name))
+
+    def get_on_demand_config_history(self, model_name: str):
+        """Get all versions (enabled and disabled) of a configuration for a model given its name.
+
+        Args:
+            model_name: The model name to fetch the configuration history for.
+        Returns:
+            dict: Response with 'configs' list and 'total' count.
+        """
+        return asyncio.run(self._client.get_on_demand_config_history(model_name=model_name))
+
+    def create_on_demand_config(
+        self,
+        model_name: str,
+        tracking_id: str = None,
+        model_uri: str = None,
+        idle_ttl: int = None,
+        description: str = None,
+        deploy: dict = None,
+        replace_enabled: bool = True,
+        inherit_config: bool = True,
+    ):
+        """Create a new on-demand model configuration.
+
+        The model will be available for auto-deployment when requests target its `model_name`.
+        Only one **enabled** configuration can exist per `model_name` at a time.
+
+        You can specify the model using either `tracking_id` (e.g. MLflow run ID) or `model_uri`
+        (direct artifact URI), or both. While `model_uri` takes precedence, if only `tracking_id` is
+        provided, it will be resolved to a `model_uri`. If `require_model_uri_validation` is set to
+        true in the config, the resolved or explicit URI will be validated against the tracking
+        server.
+
+        Set `replace_enabled=true` to atomically disable any existing config and create the new one,
+        preserving the old config in history for potential rollback and replacing the original as
+        the enabled config. If `replace_enabled=false` and an enabled config already exists for the
+        same `model_name`, a `409 Conflict` error is returned.
+
+        Set `inherit_config=true` to copy settings from the currently enabled config for this model.
+        If no enabled config exists, a new config will be created as long as the mandatory fields
+        are provided (i.e. `model_uri` or `tracking_id`). Any explicitly provided fields will
+        override the inherited values. When creating a config from scratch is desired, it is
+        recommended to set `inherit_config=false` to avoid confusion and explicitly provide
+        configuration fields as needed.
+
+        Args:
+            model_name: Docker service/container name for the model.
+            tracking_id: Tracking server run ID to resolve model URI
+                (optional if `model_uri` is provided explicitly).
+            model_uri: Direct URI to the model artifact (optional if `tracking_id` is provided).
+            idle_ttl: Idle TTL in seconds.
+            description: Human-readable description.
+            deploy: Deployment specification dict with resources, etc.
+            replace_enabled: Replace existing enabled config (creates version history).
+            inherit_config: Inherit settings from existing config if available.
+
+        Returns:
+            dict: Created configuration.
+        """
+        return asyncio.run(
+            self._client.create_on_demand_config(
+                model_name=model_name,
+                tracking_id=tracking_id,
+                model_uri=model_uri,
+                idle_ttl=idle_ttl,
+                description=description,
+                deploy=deploy,
+                replace_enabled=replace_enabled,
+                inherit_config=inherit_config,
+            )
+        )
+
+    def update_on_demand_config(
+        self,
+        model_name: str,
+        tracking_id: str = None,
+        model_uri: str = None,
+        idle_ttl: int = None,
+        description: str = None,
+        deploy: dict = None,
+        clear_tracking_id: bool = False,
+        clear_idle_ttl: bool = False,
+        clear_description: bool = False,
+        clear_deploy: bool = False,
+    ):
+        """Update an existing on-demand model configuration in-place without creating a new version.
+
+        Only provided fields will be updated. Use `clear_*` flags to explicitly unset optional
+        fields. This does NOT create version history. To preserve history, use the client's
+        `create_on_demand_config` method with `replace_enabled=true`.
+
+        You can update the model reference using `tracking_id`, `model_uri`, or both. While
+        `model_uri` takes precedence, if only `tracking_id` is provided, it will be resolved to a
+        `model_uri`. If `require_model_uri_validation` is set to true in the config, the resolved or
+        explicit URI will be validated against the tracking server. Note that updating `tracking_id`
+        results in updating `model_uri` as well if the latter is not explicitly provided.
+
+        Note: If a model is currently running, changes will only take effect on the next deployment.
+
+        Args:
+            model_name: Name for the model configuration to update.
+            tracking_id: New tracking ID ().
+            model_uri: New model URI.
+            idle_ttl: New idle TTL in seconds.
+            description: New description.
+            deploy: New deployment specification.
+            clear_tracking_id: Clear tracking_id field.
+            clear_idle_ttl: Clear idle_ttl (use system default).
+            clear_description: Clear description field.
+            clear_deploy: Clear deployment specification.
+
+        Returns:
+            dict: Updated configuration.
+        """
+        return asyncio.run(
+            self._client.update_on_demand_config(
+                model_name=model_name,
+                tracking_id=tracking_id,
+                model_uri=model_uri,
+                idle_ttl=idle_ttl,
+                description=description,
+                deploy=deploy,
+                clear_tracking_id=clear_tracking_id,
+                clear_idle_ttl=clear_idle_ttl,
+                clear_description=clear_description,
+                clear_deploy=clear_deploy,
+            )
+        )
+
+    def delete_on_demand_config(self, model_name: str):
+        """Soft-delete (disable) an on-demand model configuration.
+
+        The configuration is preserved in history and can be re-enabled. Does not stop currently
+        running instances.
+
+        Args:
+            model_name: Model name for which to disable active configuration.
+
+        Returns:
+            None on success.
+        """
+        return asyncio.run(self._client.delete_on_demand_config(model_name=model_name))
+
+    def enable_on_demand_config(self, config_id: int):
+        """Enable an on-demand configuration by ID.
+
+        Enables a config, disabling any currently enabled config for the same model.
+
+        Args:
+            config_id: ID of the configuration to enable.
+
+        Returns:
+            dict: Enabled configuration.
+        """
+        return asyncio.run(self._client.enable_on_demand_config(config_id=config_id))
 
     def health_check(self):
         """Check if the Gateway and its components are healthy and responsive.

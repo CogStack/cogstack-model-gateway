@@ -6,13 +6,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 
-import docker
 from dateutil import parser
 from docker.models.containers import Container
 from prometheus_client import start_http_server
 
 from cogstack_model_gateway.common.config import Config, load_config
-from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL, SERVICE_NAME_LABEL
+from cogstack_model_gateway.common.containers import get_models, stop_and_remove_model_container
 from cogstack_model_gateway.common.db import DatabaseManager
 from cogstack_model_gateway.common.logging import configure_logging
 from cogstack_model_gateway.common.models import ModelDeploymentType, ModelManager
@@ -46,18 +45,13 @@ def stop_and_remove_container(
     )
 
     try:
-        container.stop()
-        container.remove()
-        log.debug(f"Successfully removed container: {container.name}")
+        stop_and_remove_model_container(container)
     except Exception as e:
         log.error(f"Error removing container {container.name}: {e}")
         raise
 
     try:
-        if model_manager.delete_model(model_name):
-            log.debug(f"Deleted model record from database: {model_name}")
-        else:
-            log.warning(f"Model record not found in database: {model_name}")
+        model_manager.delete_model(model_name)
     except Exception as e:
         # Skip raising since container is already removed
         log.error(f"Error deleting model record {model_name} from database: {e}")
@@ -100,38 +94,24 @@ def purge_expired_containers(config: Config):
     After removing a container, also delete the corresponding model record from database. Finally,
     sleep for the specified interval before repeating the process.
     """
-    client = docker.from_env()
     model_manager: ModelManager = config.model_manager
 
     while True:
-        containers = client.containers.list(
-            all=True,
-            filters={
-                "label": [
-                    f"{config.labels.managed_by_label}={config.labels.managed_by_value}",
-                    config.labels.cms_model_label,
-                    f"{PROJECT_NAME_LABEL}={config.cms.project_name}",
-                ]
-            },
-        )
-        log.debug(f"Checking {len(containers)} managed containers for expiration")
+        models = get_models(all=True, managed_only=True)
+        log.debug(f"Checking {len(models)} managed containers for expiration")
 
         with ThreadPoolExecutor() as executor:
             futures = []
-            for container in containers:
-                container: Container
-                model_name = container.labels.get(SERVICE_NAME_LABEL, container.name)
+            for model in models:
+                container: Container = model["container"]
+                model_name = model["service_name"]
 
                 try:
-                    deployment_type = ModelDeploymentType(
-                        container.labels.get(
-                            config.labels.deployment_type_label, ModelDeploymentType.STATIC.value
-                        )
-                    )
+                    deployment_type = ModelDeploymentType(model["deployment_type"])
                     containers_checked_total.labels(deployment_type=deployment_type.value).inc()
                 except ValueError:
                     log.warning(
-                        f"Unknown deployment type '{deployment_type}' for container"
+                        f"Unknown deployment type '{model['deployment_type']}' for container"
                         f" {container.name}, skipping removal"
                     )
                     continue

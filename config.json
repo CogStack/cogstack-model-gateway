@@ -1,12 +1,9 @@
 {
     "cms": {
-        "image": "cogstacksystems/cogstack-modelserve:latest"
+        "image": "cogstacksystems/cogstack-modelserve:sha-19eb765"
     },
     "models": {
         "deployment": {
-            "auto": {
-                "on_demand": []
-            },
             "manual": {
                 "max_ttl": 604800
             }

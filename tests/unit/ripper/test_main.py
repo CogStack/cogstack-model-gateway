@@ -13,7 +13,8 @@ from cogstack_model_gateway.ripper.main import (
 )
 
 
-def test_stop_and_remove_container():
+@patch("cogstack_model_gateway.ripper.main.stop_and_remove_model_container")
+def test_stop_and_remove_container(mock_stop_and_remove):
     """Test that stop_and_remove_container stops/removes container and deletes from DB."""
     mock_container = MagicMock()
     mock_container.name = "test-container"
@@ -29,14 +30,16 @@ def test_stop_and_remove_container():
         idle_time=None,
     )
 
-    mock_container.stop.assert_called_once()
-    mock_container.remove.assert_called_once()
+    mock_stop_and_remove.assert_called_once_with(mock_container)
     mock_model_manager.delete_model.assert_called_once_with("test-model")
 
 
-@patch("cogstack_model_gateway.ripper.main.docker.from_env")
+@patch("cogstack_model_gateway.ripper.main.get_models")
+@patch("cogstack_model_gateway.ripper.main.stop_and_remove_model_container")
 @patch("cogstack_model_gateway.ripper.main.time.sleep", side_effect=KeyboardInterrupt)
-def test_purge_expired_containers_manual_deployment(mock_sleep, mock_docker):
+def test_purge_expired_containers_manual_deployment(
+    mock_sleep, mock_stop_and_remove, mock_get_models
+):
     """Test that manual deployments are purged based on fixed TTL from labels."""
     mock_config = MagicMock()
     mock_config.labels.managed_by_label = "org.cogstack.model-gateway.managed-by"
@@ -63,32 +66,29 @@ def test_purge_expired_containers_manual_deployment(mock_sleep, mock_docker):
     }
     mock_container.attrs = {"Created": f"{(datetime.now(UTC) - timedelta(seconds=20)).isoformat()}"}
 
-    mock_client = MagicMock()
-    mock_client.containers.list.return_value = [mock_container]
-    mock_docker.return_value = mock_client
+    mock_get_models.return_value = [
+        {
+            "service_name": "test-model",
+            "deployment_type": "manual",
+            "container": mock_container,
+        }
+    ]
 
     with pytest.raises(KeyboardInterrupt):
         purge_expired_containers(mock_config)
 
-    mock_client.containers.list.assert_called_once_with(
-        all=True,
-        filters={
-            "label": [
-                f"{mock_config.labels.managed_by_label}={mock_config.labels.managed_by_value}",
-                mock_config.labels.cms_model_label,
-                "com.docker.compose.project=cms",
-            ]
-        },
-    )
-    mock_container.stop.assert_called_once()
-    mock_container.remove.assert_called_once()
+    mock_get_models.assert_called_once_with(all=True, managed_only=True)
+    mock_stop_and_remove.assert_called_once_with(mock_container)
     mock_model_manager.delete_model.assert_called_once_with("test-model")
     mock_sleep.assert_called_once()
 
 
-@patch("cogstack_model_gateway.ripper.main.docker.from_env")
+@patch("cogstack_model_gateway.ripper.main.get_models")
+@patch("cogstack_model_gateway.ripper.main.stop_and_remove_model_container")
 @patch("cogstack_model_gateway.ripper.main.time.sleep", side_effect=KeyboardInterrupt)
-def test_purge_expired_containers_static_deployment_not_removed(mock_sleep, mock_docker):
+def test_purge_expired_containers_static_deployment_not_removed(
+    mock_sleep, mock_stop_and_remove, mock_get_models
+):
     """Test that static deployments are never auto-removed."""
     mock_config = MagicMock()
     mock_config.labels.managed_by_label = "org.cogstack.model-gateway.managed-by"
@@ -108,21 +108,27 @@ def test_purge_expired_containers_static_deployment_not_removed(mock_sleep, mock
         "com.docker.compose.service": "static-model",
     }
 
-    mock_client = MagicMock()
-    mock_client.containers.list.return_value = [mock_container]
-    mock_docker.return_value = mock_client
+    mock_get_models.return_value = [
+        {
+            "service_name": "static-model",
+            "deployment_type": "static",
+            "container": mock_container,
+        }
+    ]
 
     with pytest.raises(KeyboardInterrupt):
         purge_expired_containers(mock_config)
 
-    mock_container.stop.assert_not_called()
-    mock_container.remove.assert_not_called()
+    mock_stop_and_remove.assert_not_called()
     mock_model_manager.delete_model.assert_not_called()
 
 
-@patch("cogstack_model_gateway.ripper.main.docker.from_env")
+@patch("cogstack_model_gateway.ripper.main.get_models")
+@patch("cogstack_model_gateway.ripper.main.stop_and_remove_model_container")
 @patch("cogstack_model_gateway.ripper.main.time.sleep", side_effect=KeyboardInterrupt)
-def test_purge_expired_containers_auto_deployment(mock_sleep, mock_docker):
+def test_purge_expired_containers_auto_deployment(
+    mock_sleep, mock_stop_and_remove, mock_get_models
+):
     """Test that auto deployments are purged based on idle TTL from database."""
     mock_config = MagicMock()
     mock_config.labels.managed_by_label = "org.cogstack.model-gateway.managed-by"
@@ -145,16 +151,19 @@ def test_purge_expired_containers_auto_deployment(mock_sleep, mock_docker):
     }
     mock_container.attrs = {"Created": f"{datetime.now(UTC).isoformat()}"}
 
-    mock_client = MagicMock()
-    mock_client.containers.list.return_value = [mock_container]
-    mock_docker.return_value = mock_client
+    mock_get_models.return_value = [
+        {
+            "service_name": "auto-model",
+            "deployment_type": "auto",
+            "container": mock_container,
+        }
+    ]
 
     with pytest.raises(KeyboardInterrupt):
         purge_expired_containers(mock_config)
 
     mock_model_manager.is_model_idle.assert_called_once_with("auto-model")
-    mock_container.stop.assert_called_once()
-    mock_container.remove.assert_called_once()
+    mock_stop_and_remove.assert_called_once_with(mock_container)
     mock_model_manager.delete_model.assert_called_once_with("auto-model")
 
 

@@ -1,9 +1,13 @@
+import logging
+
 import docker
 from docker.models.containers import Container
 
 from cogstack_model_gateway.common.config import get_config
-from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL, SERVICE_NAME_LABEL
+from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL
 from cogstack_model_gateway.common.models import ModelDeploymentType
+
+log = logging.getLogger("cmg.gateway")
 
 
 def _parse_cpus_to_nano(cpus_str: str) -> int:
@@ -27,37 +31,6 @@ def _parse_cpus_to_nano(cpus_str: str) -> int:
         return int(cpus_float * 1e9)
     except (ValueError, TypeError) as e:
         raise ValueError(f"Invalid CPU format: {cpus_str}. Expected a positive number.") from e
-
-
-def get_running_models() -> list[dict]:
-    """Get a list of running containers corresponding to model servers."""
-    config = get_config()
-    client = docker.from_env()
-
-    containers = client.containers.list(
-        filters={
-            "status": "running",
-            "label": [
-                config.labels.cms_model_label,
-                f"{PROJECT_NAME_LABEL}={config.cms.project_name}",
-            ],
-        }
-    )
-    return [
-        {
-            "service_name": c.labels.get(SERVICE_NAME_LABEL, c.name),
-            "model_uri": c.labels.get(config.labels.cms_model_uri_label),
-            "deployment_type": (
-                c.labels.get(config.labels.deployment_type_label)
-                or ModelDeploymentType.STATIC.value
-            ),
-            "ip_address": c.attrs.get("NetworkSettings", {})
-            .get("Networks", {})
-            .get(config.cms.network, {})
-            .get("IPAddress"),
-        }
-        for c in containers
-    ]
 
 
 def run_model_container(

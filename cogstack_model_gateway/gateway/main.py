@@ -15,7 +15,7 @@ from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.prometheus.metrics import gateway_requests_total
-from cogstack_model_gateway.gateway.routers import models, tasks
+from cogstack_model_gateway.gateway.routers import admin, models, tasks
 
 log = logging.getLogger("cmg.gateway")
 
@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI):
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(admin.router)
 app.include_router(models.router)
 app.include_router(tasks.router)
 
