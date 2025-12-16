@@ -1,0 +1,22 @@
+name: cmg
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: cogstack_model_gateway/gateway/Dockerfile
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: cogstack_model_gateway/scheduler/Dockerfile
+
+  ripper:
+    build:
+      context: .
+      dockerfile: cogstack_model_gateway/ripper/Dockerfile
+
+  migrations:
+    build:
+      context: .
+      dockerfile: cogstack_model_gateway/migrations/Dockerfile

@@ -50,6 +50,21 @@ We use pre-commit hooks to ensure code quality. To set them up, follow these ste
 
 ## Running
 
+The recommended way to run the project locally for development is by using the provided Docker
+Compose overrides to build the images from the local codebase and spin up the required services,
+running the following command from the project root:
+
+```shell
+docker compose up --build
+```
+
+In order to include pgAdmin and the observability stack as part of the local setup, you can
+explicitly provide their corresponding profiles at startup:
+
+```shell
+docker compose --profile o11y --profile debug up --build
+```
+
 To run the project locally, the [run_local.py](./run_local.py) script is provided as a shortcut for
 spinning up the required external services (e.g. PostgreSQL, RabbitMQ, MinIO) as Docker containers
 and starting the Gateway, Scheduler, and Ripper as separate processes on the host machine. It also
