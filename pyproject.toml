@@ -20,18 +20,12 @@ python-dotenv = "^1.0.1"
 requests = "^2.32.3"
 fastapi = {extras = ["standard"], version = "^0.115.5"}
 docker = "^7.1.0"
-mlflow = "^3.1.1"
+mlflow = ">=2.0.0,<3.0.0"
 python-multipart = "^0.0.19"
 minio = "^7.2.12"
 prometheus-client = "^0.22.1"
-
-[tool.poetry.group.ripper]
-optional = true
-
-[tool.poetry.group.ripper.dependencies]
-docker = "^7.1.0"
 python-dateutil = "^2.9.0.post0"
-prometheus-client = "^0.22.1"
+boto3 = "^1.41.0"
 
 [tool.poetry.group.dev]
 optional = true

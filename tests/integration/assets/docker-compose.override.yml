@@ -1,0 +1,36 @@
+services:
+
+  medcat-snomed:
+    image: cogstacksystems/cogstack-modelserve:sha-19eb765
+    networks:
+      - cms-test
+
+  medcat-icd10:
+    image: cogstacksystems/cogstack-modelserve:sha-19eb765
+    networks:
+      - cms-test
+
+  medcat-opcs4:
+    image: cogstacksystems/cogstack-modelserve:sha-19eb765
+    networks:
+      - cms-test
+
+  medcat-deid:
+    image: cogstacksystems/cogstack-modelserve:sha-19eb765
+    networks:
+      - cms-test
+
+  medcat-umls:
+    image: cogstacksystems/cogstack-modelserve:sha-19eb765
+    networks:
+      - cms-test
+
+  huggingface-ner:
+    image: cogstacksystems/cogstack-modelserve:sha-19eb765
+    networks:
+      - cms-test
+
+networks:
+  cms-test:
+    name: cmg-test_cms
+    driver: bridge

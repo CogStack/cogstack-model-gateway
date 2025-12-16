@@ -41,10 +41,6 @@ through environment variables. Before deploying the Gateway, make sure to set th
 either by exporting them in the shell or by creating a `.env` file in the root directory of the
 project. The following variables are required:
 
-* `MLFLOW_TRACKING_URI`: The URI for the MLflow tracking server.
-* `CMS_PROJECT_NAME`: The name of the Docker project where the CogStack ModelServe stack is running.
-* `CMS_HOST_URL` (optional): Useful when running CogStack ModelServe instances behind a proxy. If
-  omitted, the Gateway will attempt to reach the services directly over the internal Docker network.
 * `CMG_SCHEDULER_MAX_CONCURRENT_TASKS`: The max number of concurrent tasks the scheduler can handle.
 * `CMG_DB_USER`: The username for the PostgreSQL database.
 * `CMG_DB_PASSWORD`: The password for the PostgreSQL database.
@@ -65,37 +61,29 @@ not allowed in MinIO bucket names). The configuration should be saved in a `.env
 directory of the project before running Docker Compose (or sourced directly in the shell):
 
 ```shell
-CMS_PROJECT_NAME=<cms-docker-compose-project-name>  # e.g. cms
-
-# (optional) Useful when running CMS behind a proxy
-CMS_HOST_URL=https://<proxy-docker-service-name>/cms  # e.g. https://proxy/cms
-
 CMG_SCHEDULER_MAX_CONCURRENT_TASKS=1
 
 # Postgres
 CMG_DB_USER=admin
 CMG_DB_PASSWORD=admin
-CMG_DB_HOST=postgres
+CMG_DB_HOST=db
 CMG_DB_PORT=5432
 CMG_DB_NAME=cmg_tasks
 
 # RabbitMQ
 CMG_QUEUE_USER=admin
 CMG_QUEUE_PASSWORD=admin
-CMG_QUEUE_HOST=rabbitmq
+CMG_QUEUE_HOST=queue
 CMG_QUEUE_PORT=5672
 CMG_QUEUE_NAME=cmg_tasks
 
 # MinIO
 CMG_OBJECT_STORE_ACCESS_KEY=admin
 CMG_OBJECT_STORE_SECRET_KEY=admin123
-CMG_OBJECT_STORE_HOST=minio
+CMG_OBJECT_STORE_HOST=object-store
 CMG_OBJECT_STORE_PORT=9000
 CMG_OBJECT_STORE_BUCKET_TASKS=cmg-tasks
 CMG_OBJECT_STORE_BUCKET_RESULTS=cmg-results
-
-# MLflow (use container IP when running locally)
-MLFLOW_TRACKING_URI=http://<mlflow-docker-service-name>:<mlflow-port>  # e.g. http://mlflow-ui:5000
 ```
 
 To install the CogStack Model Gateway, clone the repository and run `docker compose` inside the root
@@ -127,15 +115,27 @@ monitoring the state of submitted tasks. The following endpoints are available:
 
 * **Model Servers**: Interact with CMS model servers.
 
-  * `GET /models`: List all available model servers (i.e. Docker containers with the
-    "org.cogstack.model-serve" label and "com.docker.compose.project" set to `$CMS_PROJECT_NAME`).
+  * `GET /models`: List all available model servers, returning both running containers and on-demand
+    models that can be auto-deployed.
+
+    * **Response**: Dictionary with `running` and `on_demand` keys each containing a list of models.
+    * **Query Parameters**:
+      * `verbose (bool, default=false)`: When false, returns minimal info (name, uri, is_running).
+        When true, includes description, model_type, deployment_type, idle_ttl, resources, tracking
+        metadata, and runtime info (for running models).
+
+  * `GET /models/{model_name}`: Get information about a specific model (running or on-demand)
+    without triggering auto-deployment.
 
     * **Query Parameters**:
-      * `verbose (bool)`: Include model metadata from the tracking server (if available).
+      * `verbose (bool, default=false)`: When false, returns minimal info (name, uri, is_running).
+        When true, includes description, model_type, deployment_type, idle_ttl, resources, tracking
+        metadata, and runtime info (for running models).
 
-  * `GET /models/{model_server_name}/info`: Get information about a specific model (equivalent to
-    the `/info` CMS endpoint).
-  * `POST /models/{model_server_name}`: Deploy a new model server from a previously trained model.
+  * `GET /models/{model_name}/info`: Get detailed information about a running model server
+    (equivalent to the CMS `/info` endpoint). May trigger auto-deployment for on-demand models.
+
+  * `POST /models/{model_name}`: Deploy a new model server from a previously trained model.
 
     * **Body**:
       * `tracking_id (str)`: The tracking ID of the run that generated the model to serve (e.g.
@@ -144,9 +144,9 @@ monitoring the state of submitted tasks. The following endpoints are available:
       * `ttl (int, default=86400)`: The deployed model will be deleted after TTL seconds (defaults
         to 1 day). Set -1 as the TTL value to protect the model from being deleted.
 
-  * `POST /models/{model_server_name}/tasks/{task_name}`: Execute a task on the specified model
-    server, providing any query parameters or request body required (follows the CMS API, striving
-    to support the same endpoints).
+  * `POST /models/{model_name}/tasks/{task_name}`: Execute a task on the specified model server,
+    providing any query parameters or request body required (follows the CMS API, striving to
+    support the same endpoints).
 
 * **Tasks**: Monitor the state of submitted tasks.
 

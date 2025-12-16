@@ -6,7 +6,7 @@ from sqlmodel import Session, SQLModel, create_engine, text
 
 log = logging.getLogger("cmg.common")
 
-DEFAULT_POSTGRES_URL = "postgresql+psycopg2://user:password@postgres/cmg_tasks"
+DEFAULT_POSTGRES_URL = "postgresql+psycopg2://user:password@db/cmg_tasks"
 
 
 class DatabaseManager:

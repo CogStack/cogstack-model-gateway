@@ -1,0 +1,23 @@
+services:
+
+  mlflow-ui:
+    image: cogstacksystems/cogstack-mlflow-ui:0.1.1
+    networks:
+      - cms-test
+
+  mlflow-db:
+    networks:
+      - cms-test
+
+  minio:
+    networks:
+      - cms-test
+
+  model-bucket-init:
+    networks:
+      - cms-test
+
+networks:
+  cms-test:
+    name: cmg-test_cms
+    external: true

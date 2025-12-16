@@ -16,7 +16,7 @@ CMG_RIPPER_DIR = f"{CMG_SRC_DIR}/ripper"
 CMG_RIPPER_ENTRYPOINT = f"{CMG_RIPPER_DIR}/main.py"
 CMG_MIGRATIONS_DIR = f"{CMG_SRC_DIR}/migrations"
 
-CMG_DOCKER_SERVICES = ["minio", "pgadmin", "postgres", "rabbitmq"]
+CMG_DOCKER_SERVICES = ["object-store", "pgadmin", "db", "queue"]
 
 
 class ServiceManager:
@@ -88,9 +88,9 @@ if __name__ == "__main__":
         ["docker", "compose", "-f", "docker-compose.yaml", "up", *CMG_DOCKER_SERVICES, "--wait"]
     )
 
-    os.environ["CMG_DB_HOST"] = service_manager.get_container_ip("cmg-postgres-1")
-    os.environ["CMG_OBJECT_STORE_HOST"] = service_manager.get_container_ip("cmg-minio-1")
-    os.environ["CMG_QUEUE_HOST"] = service_manager.get_container_ip("cmg-rabbitmq-1")
+    os.environ["CMG_DB_HOST"] = service_manager.get_container_ip("cmg-db-1")
+    os.environ["CMG_OBJECT_STORE_HOST"] = service_manager.get_container_ip("cmg-object-store-1")
+    os.environ["CMG_QUEUE_HOST"] = service_manager.get_container_ip("cmg-queue-1")
 
     service_manager.start_services()
 

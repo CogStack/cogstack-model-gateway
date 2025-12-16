@@ -30,8 +30,9 @@ class Scheduler:
         results_object_store_manager: ObjectStoreManager,
         queue_manager: QueueManager,
         task_manager: TaskManager,
+        tracking_client: TrackingClient,
     ):
-        self.tracking_client = TrackingClient()
+        self.tracking_client = tracking_client
         self.task_object_store_manager = task_object_store_manager
         self.results_object_store_manager = results_object_store_manager
         self.queue_manager = queue_manager

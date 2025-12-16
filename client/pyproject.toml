@@ -36,6 +36,7 @@ pre-commit = "^4.2.0"
 pytest = "^8.4.1"
 pytest-asyncio = "^1.0.0"
 pytest-mock = "^3.14.1"
+sqlmodel = "^0.0.22"
 
 [tool.poetry.requires-plugins]
 poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }

@@ -30,12 +30,14 @@ async def test_gateway_client_init():
         base_url="http://localhost:8888/",
         default_model="test-model",
         polling_interval=0.5,
-        timeout=0.1,
+        polling_timeout=0.1,
+        request_timeout=120.0,
     )
     assert client.base_url == "http://localhost:8888"
     assert client.default_model == "test-model"
     assert client.polling_interval == 0.5
-    assert client.timeout == 0.1
+    assert client.polling_timeout == 0.1
+    assert client.request_timeout == 120.0
     assert client._client is None
 
     client = GatewayClient(
@@ -43,7 +45,8 @@ async def test_gateway_client_init():
         polling_interval=10,
     )
     assert client.polling_interval == 3.0  # Maximum 3.0 seconds
-    assert client.timeout is None  # Default timeout should be None
+    assert client.polling_timeout is None  # Default polling_timeout should be None
+    assert client.request_timeout == 300.0  # Default request_timeout
 
     client.polling_interval = 0.05
     assert client.polling_interval == 0.5  # Minimum is 0.5 seconds
@@ -377,16 +380,15 @@ async def test_wait_for_task_timeout(mock_httpx_async_client, mocker):
     mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
-    async with GatewayClient(base_url="http://test-gateway.com") as client:
-        client.timeout = 0.05
-        client.polling_interval = 0.5
-
+    async with GatewayClient(
+        base_url="http://test-gateway.com", polling_timeout=0.05, polling_interval=0.5
+    ) as client:
         with pytest.raises(
             TimeoutError, match="Timed out waiting for task 'task-polling' to complete"
         ):
             await client.wait_for_task("task-polling")
 
-        assert mock_get_task.await_count >= (client.timeout / client.polling_interval)
+        assert mock_get_task.await_count >= (client.polling_timeout / client.polling_interval)
 
 
 @pytest.mark.asyncio
@@ -406,10 +408,9 @@ async def test_wait_for_task_no_timeout(mock_httpx_async_client, mocker):
     mocker.patch("cogstack_model_gateway_client.client.GatewayClient.get_task", new=mock_get_task)
     mocker.patch("asyncio.sleep", new=AsyncMock())
 
-    async with GatewayClient(base_url="http://test-gateway.com") as client:
-        assert client.timeout is None
-        client.polling_interval = 0.01
-
+    async with GatewayClient(
+        base_url="http://test-gateway.com", polling_timeout=None, polling_interval=0.01
+    ) as client:
         result = await client.wait_for_task("task-polling")
 
         assert result["status"] == "succeeded"
@@ -486,17 +487,21 @@ async def test_get_model_success(mock_httpx_async_client):
     """Test get_model for successful retrieval."""
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
-    mock_response.json.return_value = {"name": "my_model", "status": "deployed"}
+    mock_response.json.return_value = {
+        "name": "my_model",
+        "uri": "models:/my_model/1",
+        "is_running": True,
+    }
     mock_response.raise_for_status.return_value = mock_response
     mock_client_instance.request.return_value = mock_response
 
     async with GatewayClient(base_url="http://test-gateway.com") as client:
         model_info = await client.get_model(model_name="my_model")
-    assert model_info == {"name": "my_model", "status": "deployed"}
+    assert model_info == {"name": "my_model", "uri": "models:/my_model/1", "is_running": True}
     mock_client_instance.request.assert_awaited_once_with(
         method="GET",
-        url="http://test-gateway.com/models/my_model/info",
-        params=None,
+        url="http://test-gateway.com/models/my_model",
+        params={"verbose": False},
         data=None,
         json=None,
         files=None,
@@ -509,7 +514,11 @@ async def test_get_model_with_default_model(mock_httpx_async_client):
     """Test get_model using the default model."""
     _, mock_client_instance = mock_httpx_async_client
     mock_response = MagicMock()
-    mock_response.json.return_value = {"name": "default_model", "status": "deployed"}
+    mock_response.json.return_value = {
+        "name": "default_model",
+        "uri": "models:/default_model/1",
+        "is_running": True,
+    }
     mock_response.raise_for_status.return_value = mock_response
     mock_client_instance.request.return_value = mock_response
 
@@ -517,11 +526,15 @@ async def test_get_model_with_default_model(mock_httpx_async_client):
         base_url="http://test-gateway.com", default_model="default_model"
     ) as client:
         model_info = await client.get_model()
-    assert model_info == {"name": "default_model", "status": "deployed"}
+    assert model_info == {
+        "name": "default_model",
+        "uri": "models:/default_model/1",
+        "is_running": True,
+    }
     mock_client_instance.request.assert_awaited_once_with(
         method="GET",
-        url="http://test-gateway.com/models/default_model/info",
-        params=None,
+        url="http://test-gateway.com/models/default_model",
+        params={"verbose": False},
         data=None,
         json=None,
         files=None,
@@ -564,6 +577,387 @@ async def test_deploy_model_success(mock_httpx_async_client):
         },
         params=None,
         data=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_remove_model(mock_httpx_async_client):
+    """Test remove_model."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        await client.remove_model(model_name="my_model", force=False)
+
+    mock_client_instance.request.assert_awaited_once_with(
+        method="DELETE",
+        url="http://test-gateway.com/models/my_model",
+        params={"force": False},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+    # Test remove_model with force flag
+    mock_client_instance.request.reset_mock()
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        await client.remove_model(model_name="my_model", force=True)
+
+    mock_client_instance.request.assert_awaited_once_with(
+        method="DELETE",
+        url="http://test-gateway.com/models/my_model",
+        params={"force": True},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+    # Test remove_model using default model
+    mock_client_instance.request.reset_mock()
+    async with GatewayClient(
+        base_url="http://test-gateway.com", default_model="default_model"
+    ) as client:
+        await client.remove_model()
+
+    mock_client_instance.request.assert_awaited_once_with(
+        method="DELETE",
+        url="http://test-gateway.com/models/default_model",
+        params={"force": False},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+    # Test remove_model raises ValueError if no model name is provided
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        with pytest.raises(ValueError, match="Please provide a model name or set a default model"):
+            await client.remove_model()
+
+
+@pytest.mark.asyncio
+async def test_list_on_demand_configs(mock_httpx_async_client):
+    """Test list_on_demand_configs."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "configs": [{"model_name": "model1"}, {"model_name": "model2"}],
+        "total": 2,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        configs = await client.list_on_demand_configs(include_disabled=False)
+
+    assert configs == {"configs": [{"model_name": "model1"}, {"model_name": "model2"}], "total": 2}
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/admin/on-demand",
+        params={"include_disabled": False},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+    # Test list_on_demand_configs including disabled configs
+    mock_client_instance.request.reset_mock()
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        configs = await client.list_on_demand_configs(include_disabled=True)
+
+    assert configs["total"] == 2
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/admin/on-demand",
+        params={"include_disabled": True},
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_on_demand_config(mock_httpx_async_client):
+    """Test create_on_demand_config."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "id": 1,
+        "model_name": "my_model",
+        "model_uri": "models:/my_model/1",
+        "enabled": True,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        config = await client.create_on_demand_config(
+            model_name="my_model",
+            model_uri="models:/my_model/1",
+            idle_ttl=3600,
+            description="Test model",
+            replace_enabled=True,
+            inherit_config=False,
+        )
+
+    assert config["model_name"] == "my_model"
+    mock_client_instance.request.assert_awaited_once_with(
+        method="POST",
+        url="http://test-gateway.com/admin/on-demand",
+        json={
+            "model_name": "my_model",
+            "tracking_id": None,
+            "model_uri": "models:/my_model/1",
+            "idle_ttl": 3600,
+            "description": "Test model",
+            "deploy": None,
+            "replace_enabled": True,
+            "inherit_config": False,
+        },
+        params=None,
+        data=None,
+        files=None,
+        headers=None,
+    )
+
+    # Test create_on_demand_config with tracking_id
+    mock_client_instance.request.reset_mock()
+    mock_response.json.return_value = {
+        "id": 1,
+        "model_name": "my_model",
+        "tracking_id": "run123",
+        "model_uri": "models:/my_model/1",
+        "enabled": True,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        config = await client.create_on_demand_config(
+            model_name="my_model",
+            tracking_id="run123",
+        )
+
+    assert config["tracking_id"] == "run123"
+    mock_client_instance.request.assert_awaited_once_with(
+        method="POST",
+        url="http://test-gateway.com/admin/on-demand",
+        json={
+            "model_name": "my_model",
+            "tracking_id": "run123",
+            "model_uri": None,
+            "idle_ttl": None,
+            "description": None,
+            "deploy": None,
+            "replace_enabled": True,
+            "inherit_config": True,
+        },
+        params=None,
+        data=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_on_demand_config(mock_httpx_async_client):
+    """Test get_on_demand_config."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "id": 1,
+        "model_name": "my_model",
+        "model_uri": "models:/my_model/1",
+        "enabled": True,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        config = await client.get_on_demand_config(model_name="my_model")
+
+    assert config["model_name"] == "my_model"
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/admin/on-demand/my_model",
+        params=None,
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_on_demand_config(mock_httpx_async_client):
+    """Test update_on_demand_config."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "id": 1,
+        "model_name": "my_model",
+        "model_uri": "models:/my_model/2",
+        "idle_ttl": 7200,
+        "enabled": True,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        config = await client.update_on_demand_config(
+            model_name="my_model",
+            model_uri="models:/my_model/2",
+            idle_ttl=7200,
+        )
+
+    assert config["model_uri"] == "models:/my_model/2"
+    assert config["idle_ttl"] == 7200
+    mock_client_instance.request.assert_awaited_once_with(
+        method="PUT",
+        url="http://test-gateway.com/admin/on-demand/my_model",
+        json={
+            "tracking_id": None,
+            "model_uri": "models:/my_model/2",
+            "idle_ttl": 7200,
+            "description": None,
+            "deploy": None,
+            "clear_tracking_id": False,
+            "clear_idle_ttl": False,
+            "clear_description": False,
+            "clear_deploy": False,
+        },
+        params=None,
+        data=None,
+        files=None,
+        headers=None,
+    )
+
+    # Test update_on_demand_config with clear flags
+    mock_client_instance.request.reset_mock()
+    mock_response.json.return_value = {
+        "id": 1,
+        "model_name": "my_model",
+        "model_uri": "models:/my_model/2",
+        "tracking_id": None,
+        "description": None,
+        "enabled": True,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        config = await client.update_on_demand_config(
+            model_name="my_model",
+            clear_tracking_id=True,
+            clear_description=True,
+        )
+
+    mock_client_instance.request.assert_awaited_once_with(
+        method="PUT",
+        url="http://test-gateway.com/admin/on-demand/my_model",
+        json={
+            "tracking_id": None,
+            "model_uri": None,
+            "idle_ttl": None,
+            "description": None,
+            "deploy": None,
+            "clear_tracking_id": True,
+            "clear_idle_ttl": False,
+            "clear_description": True,
+            "clear_deploy": False,
+        },
+        params=None,
+        data=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_on_demand_config(mock_httpx_async_client):
+    """Test delete_on_demand_config."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        await client.delete_on_demand_config(model_name="my_model")
+
+    mock_client_instance.request.assert_awaited_once_with(
+        method="DELETE",
+        url="http://test-gateway.com/admin/on-demand/my_model",
+        params=None,
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_on_demand_config_history(mock_httpx_async_client):
+    """Test get_on_demand_config_history."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "configs": [
+            {"id": 2, "model_name": "my_model", "enabled": True},
+            {"id": 1, "model_name": "my_model", "enabled": False},
+        ],
+        "total": 2,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        history = await client.get_on_demand_config_history(model_name="my_model")
+
+    assert history["total"] == 2
+    assert len(history["configs"]) == 2
+    mock_client_instance.request.assert_awaited_once_with(
+        method="GET",
+        url="http://test-gateway.com/admin/on-demand/my_model/history",
+        params=None,
+        data=None,
+        json=None,
+        files=None,
+        headers=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_enable_on_demand_config(mock_httpx_async_client):
+    """Test enable_on_demand_config."""
+    _, mock_client_instance = mock_httpx_async_client
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "id": 1,
+        "model_name": "my_model",
+        "enabled": True,
+    }
+    mock_response.raise_for_status.return_value = mock_response
+    mock_client_instance.request.return_value = mock_response
+
+    async with GatewayClient(base_url="http://test-gateway.com") as client:
+        config = await client.enable_on_demand_config(config_id=1)
+
+    assert config["enabled"] is True
+    assert config["id"] == 1
+    mock_client_instance.request.assert_awaited_once_with(
+        method="POST",
+        url="http://test-gateway.com/admin/on-demand/1/enable",
+        params=None,
+        data=None,
+        json=None,
         files=None,
         headers=None,
     )
@@ -830,7 +1224,7 @@ def test_sync_client_multiple_requests_reuse_resources(mock_httpx_async_client):
         # Verify the specific URLs were called
         call_args = [call[1]["url"] for call in mock_client_instance.request.call_args_list]
         assert "http://test-gateway.com/models/" in call_args[0]  # get_models
-        assert "http://test-gateway.com/models/model1/info" in call_args[1]  # get_model
+        assert "http://test-gateway.com/models/model1" in call_args[1]  # get_model
 
     finally:
         del client
@@ -925,7 +1319,7 @@ def test_sync_client_is_healthy(mock_httpx_async_client):
 
 
 def test_sync_client_timeout_handling(mock_httpx_async_client):
-    """Test that timeouts work correctly in the sync client."""
+    """Test that polling_timeout works correctly in the sync client."""
     _, mock_client_instance = mock_httpx_async_client
 
     async def slow_response(*args, **kwargs):

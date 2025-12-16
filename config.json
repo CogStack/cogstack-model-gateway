@@ -1,7 +1,12 @@
 {
-    "priority": {
-        "high": 1,
-        "medium": 2,
-        "low": 3
+    "cms": {
+        "image": "cogstacksystems/cogstack-modelserve:sha-19eb765"
+    },
+    "models": {
+        "deployment": {
+            "manual": {
+                "max_ttl": 604800
+            }
+        }
     }
 }

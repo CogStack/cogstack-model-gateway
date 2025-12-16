@@ -1,7 +1,7 @@
 name: cmg
 
 services:
-  postgres:
+  db:
     image: postgres:17.2
     restart: always
     labels:
@@ -17,7 +17,7 @@ services:
     ports:
       - 5432
     networks:
-      - postgres
+      - db
       - gateway
     volumes:
       - pg-data:/var/lib/postgresql/data/
@@ -27,7 +27,7 @@ services:
       timeout: 20s
       retries: 3
 
-  minio:
+  object-store:
     image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     restart: always
     labels:
@@ -54,7 +54,7 @@ services:
       timeout: 20s
       retries: 3
 
-  rabbitmq:
+  queue:
     image: rabbitmq:4.0.4-management-alpine
     restart: always
     labels:
@@ -83,30 +83,30 @@ services:
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
+      - CONFIG_FILE=/app/config.json
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
-      - CMG_DB_HOST=postgres
+      - CMG_DB_HOST=db
       - CMG_DB_PORT=5432
       - CMG_DB_NAME=$CMG_DB_NAME
       - CMG_OBJECT_STORE_ACCESS_KEY=$CMG_OBJECT_STORE_ACCESS_KEY
       - CMG_OBJECT_STORE_SECRET_KEY=$CMG_OBJECT_STORE_SECRET_KEY
-      - CMG_OBJECT_STORE_HOST=minio
+      - CMG_OBJECT_STORE_HOST=object-store
       - CMG_OBJECT_STORE_PORT=9000
       - CMG_QUEUE_USER=$CMG_QUEUE_USER
       - CMG_QUEUE_PASSWORD=$CMG_QUEUE_PASSWORD
-      - CMG_QUEUE_HOST=rabbitmq
+      - CMG_QUEUE_HOST=queue
       - CMG_QUEUE_PORT=5672
       - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
       - CMG_COMMON_LOG_LEVEL=$CMG_COMMON_LOG_LEVEL
       - CMG_GATEWAY_LOG_LEVEL=$CMG_GATEWAY_LOG_LEVEL
-      - CMS_PROJECT_NAME=$CMS_PROJECT_NAME
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
+      - NO_PROXY=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
+      - no_proxy=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
     expose:
@@ -115,12 +115,13 @@ services:
       - "${CMG_HOST_PORT:-8888}:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.json:/app/config.json:ro
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
-      minio:
+      object-store:
         condition: service_healthy
-      rabbitmq:
+      queue:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
@@ -140,40 +141,42 @@ services:
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
+      - CONFIG_FILE=/app/config.json
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
-      - CMG_DB_HOST=postgres
+      - CMG_DB_HOST=db
       - CMG_DB_PORT=5432
       - CMG_DB_NAME=$CMG_DB_NAME
       - CMG_OBJECT_STORE_ACCESS_KEY=$CMG_OBJECT_STORE_ACCESS_KEY
       - CMG_OBJECT_STORE_SECRET_KEY=$CMG_OBJECT_STORE_SECRET_KEY
-      - CMG_OBJECT_STORE_HOST=minio
+      - CMG_OBJECT_STORE_HOST=object-store
       - CMG_OBJECT_STORE_PORT=9000
       - CMG_QUEUE_USER=$CMG_QUEUE_USER
       - CMG_QUEUE_PASSWORD=$CMG_QUEUE_PASSWORD
-      - CMG_QUEUE_HOST=rabbitmq
+      - CMG_QUEUE_HOST=queue
       - CMG_QUEUE_PORT=5672
       - CMG_QUEUE_NAME=$CMG_QUEUE_NAME
       - CMG_COMMON_LOG_LEVEL=$CMG_COMMON_LOG_LEVEL
       - CMG_SCHEDULER_LOG_LEVEL=$CMG_SCHEDULER_LOG_LEVEL
-      - CMG_SCHEDULER_MAX_CONCURRENT_TASKS=$CMG_SCHEDULER_MAX_CONCURRENT_TASKS
-      - MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
+      - CMG_SCHEDULER_MAX_CONCURRENT_TASKS=${CMG_SCHEDULER_MAX_CONCURRENT_TASKS:-1}
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
+      - NO_PROXY=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
+      - no_proxy=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
     expose:
       - ${CMG_SCHEDULER_METRICS_PORT:-8001}
+    volumes:
+      - ./config.json:/app/config.json:ro
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
-      minio:
+      object-store:
         condition: service_healthy
-      rabbitmq:
+      queue:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
@@ -188,22 +191,30 @@ services:
     labels:
       - org.cogstack.model-gateway.commit=$CMG_COMMIT_SHA
     environment:
+      - CONFIG_FILE=/app/config.json
       - CMG_COMMON_LOG_LEVEL=$CMG_COMMON_LOG_LEVEL
       - CMG_RIPPER_LOG_LEVEL=$CMG_RIPPER_LOG_LEVEL
-      - CMG_RIPPER_INTERVAL=$CMG_RIPPER_INTERVAL
+      - CMG_RIPPER_INTERVAL=${CMG_RIPPER_INTERVAL:-60}
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
+      - NO_PROXY=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=minio,mlflow-ui,postgres,rabbitmq,localhost,proxy,$CMG_NO_PROXY_EXT
+      - no_proxy=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
     env_file:
       - .env
     expose:
       - ${CMG_RIPPER_METRICS_PORT:-8002}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
+      - gateway
       - observability
 
   migrations:
@@ -213,20 +224,20 @@ services:
     environment:
       - CMG_DB_USER=$CMG_DB_USER
       - CMG_DB_PASSWORD=$CMG_DB_PASSWORD
-      - CMG_DB_HOST=postgres
+      - CMG_DB_HOST=db
       - CMG_DB_PORT=5432
       - CMG_DB_NAME=$CMG_DB_NAME
       - HTTP_PROXY=$HTTP_PROXY
       - HTTPS_PROXY=$HTTPS_PROXY
-      - NO_PROXY=postgres
+      - NO_PROXY=db
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
-      - no_proxy=postgres
+      - no_proxy=db
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     networks:
-      - postgres
+      - db
 
   prometheus:
     image: prom/prometheus:v3.4.1
@@ -302,10 +313,10 @@ services:
     ports:
       - 80
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     networks:
-      - postgres
+      - db
     volumes:
       - pgadmin-data:/var/lib/pgadmin/
 
@@ -324,7 +335,7 @@ volumes:
     driver: local
 
 networks:
-  postgres:
+  db:
     driver: bridge
   gateway:
     driver: bridge

@@ -61,3 +61,15 @@ retry_if_timeout_error = retry(
     retry=retry_if_exception(is_timeout_error),
     before_sleep=before_sleep_log(log, logging.WARNING),
 )
+
+
+class ConfigValidationError(ValueError):
+    """Raised when configuration validation fails (400 Bad Request)."""
+
+    pass
+
+
+class ConfigConflictError(ValueError):
+    """Raised when a configuration conflicts with an existing one (409 Conflict)."""
+
+    pass

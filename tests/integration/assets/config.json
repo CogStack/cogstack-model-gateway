@@ -1,0 +1,25 @@
+{
+    "cms": {
+        "host_url": "",
+        "project_name": "cmg-test",
+        "network": "cmg-test_cms",
+        "image": "cogstacksystems/cogstack-modelserve:sha-19eb765",
+        "tracking": {
+            "username": "admin",
+            "password": "admin",
+            "s3": {
+                "access_key_id": "admin",
+                "secret_access_key": "admin123"
+            }
+        }
+    },
+    "models": {
+        "deployment": {
+            "use_ip_addresses": true,
+            "manual": {
+                "max_ttl": 604800,
+                "require_model_uri_validation": true
+            }
+        }
+    }
+}

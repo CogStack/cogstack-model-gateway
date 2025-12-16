@@ -1,4 +1,5 @@
 import logging
+import os
 
 import mlflow
 import mlflow.models
@@ -6,6 +7,7 @@ from mlflow import MlflowClient, MlflowException
 from mlflow.entities import Run, RunStatus
 
 MODEL_URI_TAG = "training.output.model_uri"
+MODEL_TYPE_TAG = "model_type"
 
 log = logging.getLogger("cmg.common")
 
@@ -74,8 +76,47 @@ class TrackingTask:
 
 
 class TrackingClient:
-    def __init__(self, tracking_uri: str = None):
+    def __init__(
+        self,
+        tracking_uri: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        s3_endpoint_url: str | None = None,
+        s3_access_key_id: str | None = None,
+        s3_secret_access_key: str | None = None,
+    ):
+        """Initialize tracking client.
+
+        Args:
+            tracking_uri: Tracking server URI.
+                Defaults to MLFLOW_TRACKING_URI env var.
+            username: Tracking server username.
+                Defaults to MLFLOW_TRACKING_USERNAME env var.
+            password: Tracking server password.
+                Defaults to MLFLOW_TRACKING_PASSWORD env var.
+            s3_endpoint_url: S3 endpoint URL for artifact storage (e.g. MinIO).
+                Defaults to MLFLOW_S3_ENDPOINT_URL env var.
+            s3_access_key_id: S3 access key ID for downloading artifacts.
+                Defaults to AWS_ACCESS_KEY_ID env var.
+            s3_secret_access_key: S3 secret access key for downloading artifacts.
+                Defaults to AWS_SECRET_ACCESS_KEY env var.
+        """
         self.tracking_uri = tracking_uri or mlflow.get_tracking_uri()
+
+        # Set credentials in environment for MLflow and boto3
+        # Note: Always set these even if None/empty, as boto3 checks for their presence
+        if username is not None:
+            os.environ["MLFLOW_TRACKING_USERNAME"] = username
+        if password is not None:
+            os.environ["MLFLOW_TRACKING_PASSWORD"] = password
+
+        if s3_endpoint_url is not None:
+            os.environ["MLFLOW_S3_ENDPOINT_URL"] = s3_endpoint_url
+        if s3_access_key_id is not None:
+            os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key_id
+        if s3_secret_access_key is not None:
+            os.environ["AWS_SECRET_ACCESS_KEY"] = s3_secret_access_key
+
         self._mlflow_client = MlflowClient(self.tracking_uri)
         mlflow.set_tracking_uri(self.tracking_uri)
 
@@ -143,4 +184,42 @@ class TrackingClient:
             }
         except MlflowException as e:
             log.error(f"Failed to get model metadata for model URI '{model_uri}': {e}")
+            return None
+
+    def get_model_type(self, model_uri: str) -> str | None:
+        """Get model type from tracking server.
+
+        CMS sets the 'model_type' tag on registered model versions. This method retrieves that tag
+        from the model registry, handling various URI formats uniformly by finding the corresponding
+        run first.
+
+        Args:
+            model_uri: MLflow model URI in any of these formats:
+                - 'models:/model-name/1' (version number)
+                - 'models:/model-name/Production' (stage name)
+                - 'runs:/run-id/artifact-path' (direct run reference)
+                - 's3://bucket/path' (direct artifact path)
+
+        Returns:
+            Model type string (e.g. 'medcat_deid') or None
+        """
+        try:
+            model_info = mlflow.models.get_model_info(model_uri)
+
+            if not model_info.run_id:
+                return None
+
+            model_versions = self._mlflow_client.search_model_versions(
+                filter_string=f"run_id='{model_info.run_id}'"
+            )
+
+            # Return model_type from the first matching model version
+            # (typically there's only one registered model per run)
+            if model_versions:
+                return model_versions[0].tags.get(MODEL_TYPE_TAG)
+
+            return None
+
+        except MlflowException as e:
+            log.warning(f"Failed to get model type for model URI '{model_uri}': {e}")
             return None

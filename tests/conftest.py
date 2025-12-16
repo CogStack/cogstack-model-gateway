@@ -1,6 +1,8 @@
 import logging
+from collections.abc import Generator
 
 import pytest
+from sqlmodel import Session, SQLModel, create_engine
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -48,3 +50,16 @@ def setup_logging() -> None:
         parent_logger.addHandler(handler)
 
     logging.getLogger("cmg.tests").setLevel(logging.INFO)
+
+
+@pytest.fixture(scope="function")
+def db_manager() -> Generator[Session, None, None]:
+    """Create an in-memory SQLite database for testing."""
+    test_engine = create_engine("sqlite:///:memory:")
+    SQLModel.metadata.create_all(test_engine)
+
+    class TestDatabaseManager:
+        def get_session(self) -> Session:
+            return Session(test_engine)
+
+    return TestDatabaseManager()

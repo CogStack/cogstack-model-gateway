@@ -1,24 +1,10 @@
-from collections.abc import Generator
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session
 
 from cogstack_model_gateway.common.tasks import Status, Task, TaskManager, UnexpectedStatusError
-
-
-@pytest.fixture
-def db_manager() -> Generator[Session, None, None]:
-    """Create an in-memory SQLite database for testing."""
-    test_engine = create_engine("sqlite:///:memory:")
-    SQLModel.metadata.create_all(test_engine)
-
-    class TestDatabaseManager:
-        def get_session(self) -> Session:
-            return Session(test_engine)
-
-    return TestDatabaseManager()
 
 
 @pytest.fixture
@@ -126,7 +112,7 @@ def test_update_nonexistent_task(task_manager: TaskManager) -> None:
     assert task_manager.get_task(non_existent_uuid) is None
 
 
-@patch("logging.Logger.info")
+@patch("cogstack_model_gateway.common.tasks.log.info")
 def test_logging(mock_log_info: MagicMock, task_manager: TaskManager) -> None:
     """Test logged outputs."""
     task = task_manager.create_task()

@@ -9,11 +9,13 @@ from prometheus_client import CollectorRegistry, make_asgi_app, multiprocess
 from cogstack_model_gateway.common.config import get_config, load_config
 from cogstack_model_gateway.common.db import DatabaseManager
 from cogstack_model_gateway.common.logging import configure_logging
+from cogstack_model_gateway.common.models import ModelManager
 from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
+from cogstack_model_gateway.common.tracking import TrackingClient
 from cogstack_model_gateway.gateway.prometheus.metrics import gateway_requests_total
-from cogstack_model_gateway.gateway.routers import models, tasks
+from cogstack_model_gateway.gateway.routers import admin, models, tasks
 
 log = logging.getLogger("cmg.gateway")
 
@@ -33,48 +35,59 @@ async def lifespan(app: FastAPI):
     configure_logging()
     log.info("Initializing database and queue connections")
 
-    config = load_config()
+    config = load_config(os.getenv("CONFIG_FILE"))
     dbm = DatabaseManager(
-        user=config.cmg.db_user,
-        password=config.cmg.db_password,
-        host=config.cmg.db_host,
-        port=config.cmg.db_port,
-        db_name=config.cmg.db_name,
+        user=config.db.user,
+        password=config.db.password,
+        host=config.db.host,
+        port=config.db.port,
+        db_name=config.db.name,
     )
-    dbm.init_db()
 
     task_osm = ObjectStoreManager(
-        host=config.cmg.object_store_host,
-        port=config.cmg.object_store_port,
-        access_key=config.cmg.object_store_access_key,
-        secret_key=config.cmg.object_store_secret_key,
-        default_bucket=config.cmg.object_store_bucket_tasks,
+        host=config.object_store.host,
+        port=config.object_store.port,
+        access_key=config.object_store.access_key,
+        secret_key=config.object_store.secret_key,
+        default_bucket=config.object_store.bucket_tasks,
     )
 
     results_osm = ObjectStoreManager(
-        host=config.cmg.object_store_host,
-        port=config.cmg.object_store_port,
-        access_key=config.cmg.object_store_access_key,
-        secret_key=config.cmg.object_store_secret_key,
-        default_bucket=config.cmg.object_store_bucket_results,
+        host=config.object_store.host,
+        port=config.object_store.port,
+        access_key=config.object_store.access_key,
+        secret_key=config.object_store.secret_key,
+        default_bucket=config.object_store.bucket_results,
     )
 
     qm = QueueManager(
-        user=config.cmg.queue_user,
-        password=config.cmg.queue_password,
-        host=config.cmg.queue_host,
-        port=config.cmg.queue_port,
-        queue_name=config.cmg.queue_name,
+        user=config.queue.user,
+        password=config.queue.password,
+        host=config.queue.host,
+        port=config.queue.port,
+        queue_name=config.queue.name,
     )
     qm.init_queue()
 
     tm = TaskManager(db_manager=dbm)
+    mm = ModelManager(db_manager=dbm)
 
-    config.set("database_manager", dbm)
-    config.set("task_object_store_manager", task_osm)
-    config.set("results_object_store_manager", results_osm)
-    config.set("queue_manager", qm)
-    config.set("task_manager", tm)
+    tc = TrackingClient(
+        tracking_uri=config.tracking.uri,
+        username=config.tracking.username,
+        password=config.tracking.password,
+        s3_endpoint_url=config.tracking.s3.endpoint_url,
+        s3_access_key_id=config.tracking.s3.access_key_id,
+        s3_secret_access_key=config.tracking.s3.secret_access_key,
+    )
+
+    config.database_manager = dbm
+    config.task_object_store_manager = task_osm
+    config.results_object_store_manager = results_osm
+    config.queue_manager = qm
+    config.task_manager = tm
+    config.model_manager = mm
+    config.tracking_client = tc
 
     yield
 
@@ -82,6 +95,7 @@ async def lifespan(app: FastAPI):
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(admin.router)
 app.include_router(models.router)
 app.include_router(tasks.router)
 
