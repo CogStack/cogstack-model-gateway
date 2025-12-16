@@ -88,6 +88,26 @@ To run the tests, execute the following command inside the virtual environment:
 pytest
 ```
 
+## Python Client
+
+A Python client is provided in to simplify interaction with the CogStack Model Gateway. It abstracts
+task submission, polling, and result retrieval, providing both high-level and low-level APIs. The
+client is async by default, but a synchronous version is also available for easier experimentation.
+
+The Python package is managed and built using [Poetry](https://python-poetry.org/), with dynamic
+versioning. To build and publish the client package, first make sure that the commit from which you
+are building is tagged with the desired version number, which will be used by Poetry to set the
+package version automatically. Then, inside the [client](./client) directory, run the following
+commands:
+
+```shell
+poetry build
+poetry publish
+```
+
+Please ensure you have the necessary permissions to publish the package to PyPI and that you have
+correctly configured Poetry with your PyPI credentials.
+
 ### On Mac
 
 If you're running the integration tests on Mac you may need to take some additional steps to ensure
