@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 
@@ -140,11 +141,11 @@ class Scheduler:
             task = self.tracking_client.get_task(tracking_id)
             if task is None:
                 raise ValueError(f"Task '{task_uuid}' not found in tracking server")
-            res = {"url": task.url, "error": task.get_exceptions()}
+
             if task.is_finished:
-                return {"status": Status.SUCCEEDED, **res}
+                return {"status": Status.SUCCEEDED, "results": task.to_dict()}
             elif task.is_failed or task.is_killed:
-                return {"status": Status.FAILED, **res}
+                return {"status": Status.FAILED, "results": task.to_dict()}
             else:
                 # Task is scheduled or still running
                 time.sleep(5)
@@ -266,9 +267,9 @@ class Scheduler:
 
             results = self.poll_task_status(task_uuid, tracking_id)
             if results["status"] == Status.FAILED:
-                log.error(f"Task '{task_uuid}' failed: {results['error']}")
+                log.error(f"Task '{task_uuid}' failed: {results['results']['error']}")
                 task = self.task_manager.update_task(
-                    task_uuid, status=Status.FAILED, error_message=str(results["error"])
+                    task_uuid, status=Status.FAILED, error_message=str(results["results"]["error"])
                 )
                 tasks_completed_total.labels(
                     **get_task_labels(task), status=task.status.value
@@ -276,8 +277,9 @@ class Scheduler:
                 return task
             else:
                 log.info(f"Task '{task_uuid}' completed, writing results to object store")
+                results_json = json.dumps(results["results"], indent=2)
                 object_key = self.results_object_store_manager.upload_object(
-                    results["url"].encode(), "results.url", prefix=task_uuid
+                    results_json.encode(), "results.json", prefix=task_uuid
                 )
                 task = self.task_manager.update_task(
                     task_uuid, status=Status.SUCCEEDED, result=object_key

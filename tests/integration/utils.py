@@ -13,6 +13,7 @@ import requests
 from docker.models.containers import Container
 from fastapi.testclient import TestClient
 from git import Repo
+from mlflow.entities import LifecycleStage, RunStatus
 from testcontainers.compose import DockerCompose
 from testcontainers.core.container import DockerClient, DockerContainer
 from testcontainers.minio import MinioContainer
@@ -108,8 +109,6 @@ def setup_scheduler(request: pytest.FixtureRequest):
 
 
 def setup_cms(request: pytest.FixtureRequest, cleanup_cms: bool) -> dict[str, dict]:
-    cleanup_deployed_model_containers()
-
     try:
         clone_cogstack_model_serve()
     except Exception as e:
@@ -438,6 +437,64 @@ def verify_results_match_api_info(client: TestClient, task: Task, result: bytes)
     download_results = client.get(f"/tasks/{task.uuid}", params={"download": True})
     assert download_results.status_code == 200
     assert download_results.content == result
+
+
+def verify_training_task_results(parsed_results: dict, task: Task):
+    """Verify structured results from a training task.
+
+    Validates that the results contain all expected top-level keys (run, timing, metrics, params,
+    tags, artifacts) and that key fields match the task metadata.
+
+    Args:
+        parsed_results: The parsed JSON results from the training task
+        task: The Task object to verify against
+    """
+    assert isinstance(parsed_results, dict)
+    assert all(
+        key in parsed_results
+        for key in ["run", "timing", "metrics", "params", "tags", "artifacts", "error"]
+    )
+
+    assert isinstance(parsed_results["run"], dict)
+    assert all(
+        key in parsed_results["run"]
+        for key in [
+            "run_id",
+            "run_name",
+            "experiment_id",
+            "status",
+            "lifecycle_stage",
+            "internal_url",
+        ]
+    )
+    assert parsed_results["run"]["run_id"] == task.tracking_id
+    assert parsed_results["run"]["status"] == RunStatus.to_string(RunStatus.FINISHED)
+    assert parsed_results["run"]["lifecycle_stage"] == LifecycleStage.ACTIVE
+    assert parsed_results["run"]["run_name"] is not None
+    assert parsed_results["run"]["experiment_id"] is not None
+    assert parsed_results["run"]["internal_url"] is not None
+
+    _, parsed_experiment_id, parsed_run_id = parse_mlflow_url(parsed_results["run"]["internal_url"])
+    assert parsed_results["run"]["experiment_id"] == parsed_experiment_id
+    assert parsed_results["run"]["run_id"] == parsed_run_id
+
+    assert isinstance(parsed_results["timing"], dict)
+    assert all(
+        key in parsed_results["timing"] for key in ["started_at", "finished_at", "duration_seconds"]
+    )
+    assert parsed_results["timing"]["started_at"] is not None
+    assert parsed_results["timing"]["finished_at"] is not None
+    assert parsed_results["timing"]["duration_seconds"] is not None
+
+    assert isinstance(parsed_results["metrics"], dict)
+    assert isinstance(parsed_results["params"], dict)
+    assert isinstance(parsed_results["tags"], dict)
+
+    assert isinstance(parsed_results["artifacts"], dict)
+    assert "artifact_uri" in parsed_results["artifacts"]
+    assert parsed_results["artifacts"]["artifact_uri"] is not None
+
+    assert parsed_results["error"] is None
 
 
 def parse_mlflow_url(url: str) -> tuple:

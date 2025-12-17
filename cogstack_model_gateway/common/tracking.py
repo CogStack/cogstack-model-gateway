@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import UTC, datetime
 
 import mlflow
 import mlflow.models
@@ -73,6 +74,54 @@ class TrackingTask:
             if "exception" in self.data.tags
             else [value for key, value in self.data.tags.items() if key.startswith("exception_")]
         )
+
+    def to_dict(self) -> dict:
+        """Convert the tracking task to a structured results dictionary.
+
+        Returns a comprehensive dictionary containing run metadata, timing information,
+        training metrics, parameters, tags, and artifact locations.
+
+        Returns:
+            dict: Structured results with the following top-level keys:
+                - run: Run identification and status
+                - timing: Start/end times and duration
+                - metrics: Training metrics (e.g. accuracy, loss)
+                - params: Training parameters (e.g. learning_rate, epochs)
+                - tags: Custom tags and metadata
+                - artifacts: Artifact URIs
+                - error: Logged exceptions, if any
+        """
+        start_time_ms, end_time_ms = self.info.start_time, self.info.end_time
+
+        started_at = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC).isoformat()
+        finished_at, duration_seconds = None, None
+
+        if end_time_ms:
+            finished_at = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC).isoformat()
+            duration_seconds = (end_time_ms - start_time_ms) / 1000
+
+        return {
+            "run": {
+                "run_id": self.info.run_id,
+                "run_name": self.info.run_name,
+                "experiment_id": self.info.experiment_id,
+                "status": self.status,
+                "lifecycle_stage": self.info.lifecycle_stage,
+                "internal_url": self.url,
+            },
+            "timing": {
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_seconds": duration_seconds,
+            },
+            "metrics": self.data.metrics or {},
+            "params": self.data.params or {},
+            "tags": self.data.tags or {},
+            "artifacts": {
+                "artifact_uri": self.info.artifact_uri,
+            },
+            "error": exceptions if (exceptions := self.get_exceptions()) else None,
+        }
 
 
 class TrackingClient:

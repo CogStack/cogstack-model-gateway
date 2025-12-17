@@ -23,7 +23,6 @@ from tests.integration.utils import (
     count_deployed_model_containers,
     download_result_object,
     get_deployed_model_container,
-    parse_mlflow_url,
     setup_cms,
     setup_scheduler,
     setup_testcontainers,
@@ -34,6 +33,7 @@ from tests.integration.utils import (
     verify_results_match_api_info,
     verify_task_payload_in_object_store,
     verify_task_submitted_successfully,
+    verify_training_task_results,
     wait_for_task_completion,
 )
 
@@ -116,8 +116,11 @@ def trained_model(client: TestClient, config: Config) -> tuple[str, str]:
     tm: TaskManager = config.task_manager
     task = wait_for_task_completion(response_json["uuid"], tm, expected_status=Status.SUCCEEDED)
 
-    _, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
-    _, _, run_id = parse_mlflow_url(parsed)
+    _, parsed = download_result_object(task.result, config.results_object_store_manager)
+
+    verify_training_task_results(parsed, task)
+
+    run_id = parsed["run"]["run_id"]
 
     tc: TrackingClient = config.tracking_client
     model_uri = tc.get_model_uri(run_id)
@@ -570,11 +573,9 @@ def test_train_supervised(client: TestClient, config: Config):
 
     verify_queue_is_empty(config.queue_manager)
 
-    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
 
-    _, _, run_id = parse_mlflow_url(parsed)
-    assert run_id == task.tracking_id
-
+    verify_training_task_results(parsed, task)
     verify_results_match_api_info(client, task, res)
 
 
@@ -599,11 +600,9 @@ def test_train_unsupervised(client: TestClient, config: Config):
 
     verify_queue_is_empty(config.queue_manager)
 
-    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
 
-    _, _, run_id = parse_mlflow_url(parsed)
-    assert run_id == task.tracking_id
-
+    verify_training_task_results(parsed, task)
     verify_results_match_api_info(client, task, res)
 
 
@@ -622,11 +621,9 @@ def test_train_unsupervised_with_hf_hub_dataset(client: TestClient, config: Conf
 
     verify_queue_is_empty(config.queue_manager)
 
-    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
 
-    _, _, run_id = parse_mlflow_url(parsed)
-    assert run_id == task.tracking_id
-
+    verify_training_task_results(parsed, task)
     verify_results_match_api_info(client, task, res)
 
 
@@ -651,11 +648,9 @@ def test_train_metacat(client: TestClient, config: Config):
 
     verify_queue_is_empty(config.queue_manager)
 
-    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
 
-    _, _, run_id = parse_mlflow_url(parsed)
-    assert run_id == task.tracking_id
-
+    verify_training_task_results(parsed, task)
     verify_results_match_api_info(client, task, res)
 
 
@@ -679,11 +674,9 @@ def test_evaluate(client: TestClient, config: Config):
 
     verify_queue_is_empty(config.queue_manager)
 
-    res, parsed = download_result_object(task.result, config.results_object_store_manager, "text")
+    res, parsed = download_result_object(task.result, config.results_object_store_manager)
 
-    _, _, run_id = parse_mlflow_url(parsed)
-    assert run_id == task.tracking_id
-
+    verify_training_task_results(parsed, task)
     verify_results_match_api_info(client, task, res)
 
 
