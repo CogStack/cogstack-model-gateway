@@ -4,7 +4,7 @@ import docker
 from docker.models.containers import Container
 
 from cogstack_model_gateway.common.config import get_config
-from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL
+from cogstack_model_gateway.common.containers import PROJECT_NAME_LABEL, SERVICE_NAME_LABEL
 from cogstack_model_gateway.common.models import ModelDeploymentType
 
 log = logging.getLogger("cmg.gateway")
@@ -71,6 +71,7 @@ def run_model_container(
         # set it explicitly here to ensure that model servers deployed through the gateway can be
         # identified/listed/deleted in the same way as the ones deployed through Docker compose.
         PROJECT_NAME_LABEL: config.cms.project_name,
+        SERVICE_NAME_LABEL: model_name,
         config.labels.cms_model_label: model_name,
         config.labels.cms_model_uri_label: model_uri,
         config.labels.ttl_label: str(ttl),
