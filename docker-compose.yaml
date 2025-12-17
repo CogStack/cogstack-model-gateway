@@ -10,8 +10,6 @@ services:
       POSTGRES_USER: $CMG_DB_USER
       POSTGRES_PASSWORD: $CMG_DB_PASSWORD
       POSTGRES_DB: $CMG_DB_NAME
-    env_file:
-      - .env
     expose:
       - 5432
     ports:
@@ -35,8 +33,6 @@ services:
     environment:
       - MINIO_ROOT_USER=$CMG_OBJECT_STORE_ACCESS_KEY
       - MINIO_ROOT_PASSWORD=$CMG_OBJECT_STORE_SECRET_KEY
-    env_file:
-      - .env
     expose:
       - 9000
       - 9001
@@ -107,8 +103,6 @@ services:
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
       - no_proxy=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
-    env_file:
-      - .env
     expose:
       - 8000
     ports:
@@ -165,8 +159,6 @@ services:
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
       - no_proxy=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
-    env_file:
-      - .env
     expose:
       - ${CMG_SCHEDULER_METRICS_PORT:-8001}
     volumes:
@@ -201,8 +193,6 @@ services:
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
       - no_proxy=db,mlflow-ui,object-store,queue,localhost,proxy,$CMG_NO_PROXY_EXT
-    env_file:
-      - .env
     expose:
       - ${CMG_RIPPER_METRICS_PORT:-8002}
     volumes:
@@ -308,8 +298,6 @@ services:
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@ucl.ac.uk
       - PGADMIN_DEFAULT_PASSWORD=admin
-    env_file:
-      - .env
     ports:
       - 80
     depends_on:
