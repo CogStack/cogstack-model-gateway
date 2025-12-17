@@ -214,6 +214,127 @@ class GatewayClient:
             return_result=return_result,
         )
 
+    async def train_supervised(
+        self,
+        trainer_export_paths: list,
+        epochs: int = 1,
+        lr_override: float = None,
+        test_size: float = 0.2,
+        early_stopping_patience: int = -1,
+        log_frequency: int = 1,
+        description: str = None,
+        tracking_id: str = None,
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Run supervised training using uploaded trainer export files.
+
+        Args:
+            trainer_export_paths: A list of trainer export files to be uploaded.
+            epochs (optional): The number of training epochs. Defaults to 1.
+            lr_override (optional): The override of the initial learning rate (>0.0). Defaults to
+                the value used in the previous training run.
+            test_size (optional): The override of the test size in percentage. Defaults to 0.2.
+            early_stopping_patience (optional): The number of evaluations to wait for improvement
+                before stopping the training. Non-positive values disable early stopping.
+            log_frequency (optional): The number of processed documents or epochs after which
+                training metrics will be logged. Must be at least 1.
+            description (optional): An optional description of the training task.
+            tracking_id (optional): An optional tracking ID of the requested task.
+        """
+        files = []
+        try:
+            for path in trainer_export_paths:
+                files.append(("trainer_export", open(path, "rb")))
+            data = {"description": description} if description else None
+            params = {
+                k: v
+                for k, v in {
+                    "epochs": epochs,
+                    "lr_override": lr_override,
+                    "test_size": test_size,
+                    "early_stopping_patience": early_stopping_patience,
+                    "log_frequency": log_frequency,
+                    "tracking_id": tracking_id,
+                }.items()
+                if v is not None
+            } or None
+            return await self.submit_task(
+                model_name=model_name,
+                task="train_supervised",
+                data=data,
+                files=files,
+                params=params,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        finally:
+            for _, f in files:
+                try:
+                    f.close()
+                except Exception:
+                    pass
+
+    async def train_unsupervised(
+        self,
+        training_data_paths: list,
+        epochs: int = 1,
+        lr_override: float = None,
+        test_size: float = 0.2,
+        log_frequency: int = 1,
+        description: str = None,
+        tracking_id: str = None,
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Run unsupervised training using one or more files, each containing a list of plain texts.
+
+        Args:
+            training_data_paths: A list of files uploaded, each containing a list of plain texts in
+                the format of [\"text_1\", \"text_2\", ..., \"text_n\"].
+            epochs (optional): The number of training epochs to perform. Defaults to 1.
+            lr_override (optional): The override of the initial learning rate. Defaults to the value
+                used in previous training and must be greater than 0.0.
+            test_size (optional): An override of the test size in percentage. Defaults to 0.2.
+            log_frequency (optional): The number of processed documents or epochs after which
+                training metrics will be logged. Must be at least 1.
+            description (optional): An optional description of the training task.
+            tracking_id (optional): An optional tracking ID of the requested task.
+        """
+        files = []
+        try:
+            for path in training_data_paths:
+                files.append(("training_data", open(path, "rb")))
+            data = {"description": description} if description else None
+            params = {
+                k: v
+                for k, v in {
+                    "epochs": epochs,
+                    "lr_override": lr_override,
+                    "test_size": test_size,
+                    "log_frequency": log_frequency,
+                    "tracking_id": tracking_id,
+                }.items()
+                if v is not None
+            } or None
+            return await self.submit_task(
+                model_name=model_name,
+                task="train_unsupervised",
+                data=data,
+                files=files,
+                params=params,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        finally:
+            for _, f in files:
+                try:
+                    f.close()
+                except Exception:
+                    pass
+
     @require_client
     async def _get_task(self, task_uuid: str, detail: bool = True, download: bool = False):
         """Get a Gateway task."""
@@ -831,6 +952,93 @@ class GatewayClientSync:
                 warn_on_no_redaction=warn_on_no_redaction,
                 mask=mask,
                 hash=hash,
+                model_name=model_name,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        )
+
+    def train_supervised(
+        self,
+        trainer_export_paths: list,
+        epochs: int = 1,
+        lr_override: float = None,
+        test_size: float = 0.2,
+        early_stopping_patience: int = -1,
+        log_frequency: int = 1,
+        description: str = None,
+        tracking_id: str = None,
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Run supervised training using uploaded trainer export files.
+
+        Args:
+            trainer_export_paths: A list of trainer export files to be uploaded.
+            epochs (optional): The number of training epochs. Defaults to 1.
+            lr_override (optional): The override of the initial learning rate (>0.0). Defaults to
+                the value used in the previous training run.
+            test_size (optional): The override of the test size in percentage. Defaults to 0.2.
+            early_stopping_patience (optional): The number of evaluations to wait for improvement
+                before stopping the training. Non-positive values disable early stopping.
+            log_frequency (optional): The number of processed documents or epochs after which
+                training metrics will be logged. Must be at least 1.
+            description (optional): An optional description of the training task.
+            tracking_id (optional): An optional tracking ID of the requested task.
+        """
+        return asyncio.run(
+            self._client.train_supervised(
+                trainer_export_paths=trainer_export_paths,
+                epochs=epochs,
+                lr_override=lr_override,
+                test_size=test_size,
+                early_stopping_patience=early_stopping_patience,
+                log_frequency=log_frequency,
+                description=description,
+                tracking_id=tracking_id,
+                model_name=model_name,
+                wait_for_completion=wait_for_completion,
+                return_result=return_result,
+            )
+        )
+
+    def train_unsupervised(
+        self,
+        training_data_paths: list,
+        epochs: int = 1,
+        lr_override: float = None,
+        test_size: float = 0.2,
+        log_frequency: int = 1,
+        description: str = None,
+        tracking_id: str = None,
+        model_name: str = None,
+        wait_for_completion: bool = True,
+        return_result: bool = True,
+    ):
+        """Run unsupervised training using one or more files, each containing a list of plain texts.
+
+        Args:
+            training_data_paths: A list of files uploaded, each containing a list of plain texts in
+                the format of [\"text_1\", \"text_2\", ..., \"text_n\"].
+            epochs (optional): The number of training epochs to perform. Defaults to 1.
+            lr_override (optional): The override of the initial learning rate. Defaults to the value
+                used in previous training and must be greater than 0.0.
+            test_size (optional): An override of the test size in percentage. Defaults to 0.2.
+            log_frequency (optional): The number of processed documents or epochs after which
+                training metrics will be logged. Must be at least 1.
+            description (optional): An optional description of the training task.
+            tracking_id (optional): An optional tracking ID of the requested task.
+        """
+        return asyncio.run(
+            self._client.train_unsupervised(
+                training_data_paths=training_data_paths,
+                epochs=epochs,
+                lr_override=lr_override,
+                test_size=test_size,
+                log_frequency=log_frequency,
+                description=description,
+                tracking_id=tracking_id,
                 model_name=model_name,
                 wait_for_completion=wait_for_completion,
                 return_result=return_result,
