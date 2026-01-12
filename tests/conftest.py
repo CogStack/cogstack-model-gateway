@@ -1,8 +1,14 @@
 import logging
+import os
+import shutil
 from collections.abc import Generator
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
+
+PROMETHEUS_TEST_DIR = os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus_test")
+os.environ["PROMETHEUS_MULTIPROC_DIR"] = PROMETHEUS_TEST_DIR
+os.makedirs(PROMETHEUS_TEST_DIR, exist_ok=True)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -50,6 +56,15 @@ def setup_logging() -> None:
         parent_logger.addHandler(handler)
 
     logging.getLogger("cmg.tests").setLevel(logging.INFO)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_prometheus_multiproc_dir() -> Generator[None, None, None]:
+    """Clean up Prometheus multiprocess directory after tests."""
+    yield
+
+    if os.path.exists(PROMETHEUS_TEST_DIR):
+        shutil.rmtree(PROMETHEUS_TEST_DIR, ignore_errors=True)
 
 
 @pytest.fixture(scope="function")

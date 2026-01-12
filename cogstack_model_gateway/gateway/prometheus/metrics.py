@@ -1,4 +1,8 @@
+import os
+
 from prometheus_client import Counter
+
+PROMETHEUS_MULTIPROC_DIR = os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus")
 
 gateway_requests_total = Counter(
     "gateway_requests_total",

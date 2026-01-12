@@ -14,7 +14,10 @@ from cogstack_model_gateway.common.object_store import ObjectStoreManager
 from cogstack_model_gateway.common.queue import QueueManager
 from cogstack_model_gateway.common.tasks import TaskManager
 from cogstack_model_gateway.common.tracking import TrackingClient
-from cogstack_model_gateway.gateway.prometheus.metrics import gateway_requests_total
+from cogstack_model_gateway.gateway.prometheus.metrics import (
+    PROMETHEUS_MULTIPROC_DIR,
+    gateway_requests_total,
+)
 from cogstack_model_gateway.gateway.routers import admin, models, tasks
 
 log = logging.getLogger("cmg.gateway")
@@ -22,10 +25,8 @@ log = logging.getLogger("cmg.gateway")
 
 def make_metrics_app():
     """Create a registry for each process and aggregate metrics with MultiProcessCollector."""
-    prometheus_multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus")
-    os.makedirs(prometheus_multiproc_dir, exist_ok=True)
     registry = CollectorRegistry()
-    multiprocess.MultiProcessCollector(registry, path=prometheus_multiproc_dir)
+    multiprocess.MultiProcessCollector(registry, path=PROMETHEUS_MULTIPROC_DIR)
     return make_asgi_app(registry=registry)
 
 
