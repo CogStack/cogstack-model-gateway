@@ -5,18 +5,30 @@ services:
     build:
       context: .
       dockerfile: cogstack_model_gateway/gateway/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY:-}
+        - HTTPS_PROXY=${HTTPS_PROXY:-}
 
   scheduler:
     build:
       context: .
       dockerfile: cogstack_model_gateway/scheduler/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY:-}
+        - HTTPS_PROXY=${HTTPS_PROXY:-}
 
   ripper:
     build:
       context: .
       dockerfile: cogstack_model_gateway/ripper/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY:-}
+        - HTTPS_PROXY=${HTTPS_PROXY:-}
 
   migrations:
     build:
       context: .
       dockerfile: cogstack_model_gateway/migrations/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY:-}
+        - HTTPS_PROXY=${HTTPS_PROXY:-}
