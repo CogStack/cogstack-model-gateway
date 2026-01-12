@@ -110,6 +110,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config.json:/app/config.json:ro
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
     depends_on:
       db:
         condition: service_healthy
