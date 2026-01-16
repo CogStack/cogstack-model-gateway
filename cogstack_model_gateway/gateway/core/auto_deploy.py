@@ -120,7 +120,7 @@ def deploy_on_demand_model(
             model_type=model_type,
             deployment_type=ModelDeploymentType.AUTO,
             ttl=model_config.idle_ttl,
-            resources=model_config.deploy.resources if model_config.deploy else None,
+            resources=model_config.deploy.__dict__ if model_config.deploy else None,
         )
 
         log.info("Successfully deployed container for model: %s", model_name)
