@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import threading
 
 from prometheus_client import start_http_server
 
@@ -88,6 +89,30 @@ def main():
         task_manager=connections[4],
         tracking_client=connections[5],
     )
+
+    # Start dedicated scheduler threads for models with their own queues
+    for model_name in config.queue.dedicated_model_queues:
+        dedicated_queue_name = f"{config.queue.name}_{model_name}"
+        dedicated_qm = QueueManager(
+            user=config.queue.user,
+            password=config.queue.password,
+            host=config.queue.host,
+            port=config.queue.port,
+            queue_name=dedicated_queue_name,
+            max_concurrent_tasks=config.scheduler.max_concurrent_tasks,
+        )
+        dedicated_qm.init_queue()
+        dedicated_scheduler = Scheduler(
+            task_object_store_manager=connections[1],
+            results_object_store_manager=connections[2],
+            queue_manager=dedicated_qm,
+            task_manager=connections[4],
+            tracking_client=connections[5],
+        )
+        t = threading.Thread(target=dedicated_scheduler.run, daemon=True, name=f"scheduler-{model_name}")
+        t.start()
+        log.info(f"Started dedicated scheduler thread for model '{model_name}' on queue '{dedicated_queue_name}'")
+
     scheduler.run()
 
 

@@ -628,10 +628,13 @@ async def execute_task(
     }
     priority = calculate_task_priority(task, config)
 
+    dedicated_queues = config.queue.dedicated_model_queues
+    target_queue = f"{config.queue.name}_{model_name}" if model_name in dedicated_queues else None
+
     log.info(f"Executing task '{task_dict['uuid']}': {task_dict['method']} {task_dict['url']}")
     log.debug(f"Task details: {task_dict}")
     qm: QueueManager = config.queue_manager
-    qm.publish(task_dict, priority)
+    qm.publish(task_dict, priority, queue_name=target_queue)
 
     model_manager: ModelManager = config.model_manager
     model_manager.record_model_usage(model_name)

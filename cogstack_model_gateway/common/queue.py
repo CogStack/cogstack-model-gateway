@@ -80,19 +80,28 @@ class QueueManager:
 
     @with_connection
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(5))
-    def publish(self, task: dict, priority: int):
-        """Publish a task to the queue with the specified priority."""
-        log.info("Publishing task %s with priority %s", task["uuid"], priority)
+    def publish(self, task: dict, priority: int, queue_name: str = None):
+        """Publish a task to the queue with the specified priority.
+
+        If queue_name is provided, the task is published to that queue instead of the default.
+        The target queue is declared if it does not already exist.
+        """
+        target_queue = queue_name or self.queue_name
+        if target_queue != self.queue_name:
+            self.channel.queue_declare(
+                queue=target_queue, durable=True, arguments={"x-max-priority": 10}
+            )
+        log.info("Publishing task %s with priority %s to queue '%s'", task["uuid"], priority, target_queue)
         self.channel.basic_publish(
             exchange="",
-            routing_key=self.queue_name,
+            routing_key=target_queue,
             body=json.dumps(task),
             properties=pika.BasicProperties(
                 delivery_mode=2,
                 priority=priority,
             ),
         )
-        log.info("Task '%s' published", task["uuid"])
+        log.info("Task '%s' published to queue '%s'", task["uuid"], target_queue)
 
     @staticmethod
     def _ack_message(ch: BlockingChannel, delivery_tag: int):

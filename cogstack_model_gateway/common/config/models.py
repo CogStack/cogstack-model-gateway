@@ -238,6 +238,14 @@ class QueueConfig(BaseModel):
     name: str = Field("cmg_tasks", description="Queue name")
     host: str = Field("queue", description="Queue host")
     port: int = Field(5672, description="Queue port")
+    dedicated_model_queues: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Model names that get a dedicated queue instead of the shared default queue. "
+            "Tasks for these models are published to cmg_tasks_<model_name> and consumed "
+            "by a dedicated scheduler thread, isolating them from other models traffic."
+        ),
+    )
 
 
 class SchedulerConfig(BaseModel):

@@ -8,5 +8,8 @@
                 "max_ttl": 604800
             }
         }
+    },
+    "queue": {
+        "dedicated_model_queues": []
     }
 }
